@@ -7,11 +7,14 @@ const GRID = 5; // tiles per side
  *  Returns the texture, the plane size in metres, and the offset that places
  *  the requested coordinate at the scene origin. */
 export function osmGround(lat: number, lon: number, onUpdate: () => void) {
+  // Compute positional values from latitude and longitude and zoom.
   const n = 2 ** ZOOM;
   const xf = ((lon + 180) / 360) * n;
   const latR = (lat * Math.PI) / 180;
   const yf = ((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2) * n;
   const tx = Math.floor(xf), ty = Math.floor(yf);
+
+  // Prepare a canvas and canvas texture.
   const half = Math.floor(GRID / 2);
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = GRID * 256;
@@ -21,6 +24,8 @@ export function osmGround(lat: number, lon: number, onUpdate: () => void) {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
   let loaded = 0, failed = 0;
+
+  // Build the ground texture tile by tile.
   for (let i = 0; i < GRID; i++) for (let j = 0; j < GRID; j++) {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -28,6 +33,7 @@ export function osmGround(lat: number, lon: number, onUpdate: () => void) {
     img.onerror = () => { failed++; onUpdate(); };
     img.src = `https://tile.openstreetmap.org/${ZOOM}/${tx - half + i}/${ty - half + j}.png`;
   }
+
   const mpp = (156543.03392 * Math.cos(latR)) / n; // metres per pixel
   const size = GRID * 256 * mpp;
   // pixel position of the coordinate within the canvas

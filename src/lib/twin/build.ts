@@ -12,6 +12,7 @@ export interface SampleUnit {
 const mat = (color: string, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...extra });
 
+// Create a simple box mesh with given name, size, color, and position.
 function box(name: string, s: [number, number, number], color: string, pos: [number, number, number]) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(...s), mat(color));
   m.name = name; m.position.set(...pos); m.castShadow = true; m.receiveShadow = true;
@@ -48,6 +49,7 @@ export function buildInterior(t: LayoutTemplate): THREE.Group {
   return g;
 }
 
+// Construct a simple tree model.
 function tree(x: number, z: number, s = 1) {
   const g = new THREE.Group();
   g.name = "Tree";
@@ -62,48 +64,76 @@ function tree(x: number, z: number, s = 1) {
 /** Deterministic pseudo-random */
 function rng(seed: number) { return () => ((seed = (seed * 16807) % 2147483647) / 2147483647); }
 
+// THREE.Group is similar to a Fragment in React, an empty pseudo-object meant for grouping elements together.
+// Constructs the exterior visualization of the site.
 export function buildSampleSite(buildings: SampleBuilding[], units: SampleUnit[], withInteriors = false): THREE.Group {
   const site = new THREE.Group();
   site.name = "SITE";
+
+  // Initialize random number generator.
   const rand = rng(42);
+
+  // Loop through and construct all buildings.
   for (const b of buildings) {
+    // Fetch the layout of the building.
+    // Layouts specify different types of apartments and contain info about things like furniture and flooring.
     const t = layoutOf(b.layout);
+
+    //Create an empty building group.
     const bg = new THREE.Group();
     bg.name = `BLDG_${b.name.replace(/\s/g, "_")}`;
     bg.position.set(b.x, 0, b.z);
     bg.rotation.y = THREE.MathUtils.degToRad(b.rotation);
+
+    // ox = (-BuildingColumns * LayoutWidth) / 2
+    // oz = (-BuildingRows * LayoutDepth) / 2
+    // Not sure what these are meant to represent tbh.
+    // Are layout width and depth the size of an apartment's grid tiles for furniture placement?
     const ox = (-b.cols * t.width) / 2, oz = (-b.rows * t.depth) / 2;
-    // roof + base slab
+
+    // Add simple box mesh roof and base to the bg group.
     const roof = box("Roof", [b.cols * t.width + 0.6, 0.3, b.rows * t.depth + 0.6], "#8a8f94", [0, b.floors * FLOOR_HEIGHT + 0.15, 0]);
     roof.userData["roof"] = true;
     bg.add(roof);
     bg.add(box("Plinth", [b.cols * t.width + 2, 0.12, b.rows * t.depth + 2], "#cfc8bb", [0, 0.06, 0]));
+
+    // Get the building's color or default color if not specified.
     const color = BUILDING_COLORS[b.color] ?? "#e6d6bd";
+
+    // Loop through all units in this building.
     for (const u of units.filter((u) => u.building_id === b.id)) {
+      // Get the layout of this unit.
       const ut = layoutOf(u.layout ?? b.layout);
+
+      // Create an empty unit group.
       const ug = new THREE.Group();
       ug.name = u.object_name;
       ug.userData["apartment"] = true;
       ug.userData["layout"] = ut.id;
       ug.position.set(ox + u.col * t.width, (u.floor - 1) * FLOOR_HEIGHT + 0.12, oz + u.row * t.depth);
+
+      // Build a windowed shell for the unit.
       const shell = box("SHELL", [ut.width - 0.15, FLOOR_HEIGHT - 0.15, ut.depth - 0.15], color, [ut.width / 2, FLOOR_HEIGHT / 2, ut.depth / 2]);
-      // window band
       const win = box("Window", [ut.width * 0.6, 1.1, 0.04], "#5b7f93", [ut.width / 2, FLOOR_HEIGHT * 0.55, -0.06]);
       const win2 = win.clone(); win2.position.z = ut.depth + 0.06 - 0.15;
       shell.userData["shell"] = true; win.userData["shell"] = true; win2.userData["shell"] = true;
       ug.add(shell, win, win2);
+
+      // If rendering with interiors, hide the exterior shell of each unit and add an interior to it.
       if (withInteriors) { ug.add(buildInterior(ut)); shell.visible = false; }
       bg.add(ug);
     }
     site.add(bg);
-    // trees around building
+    
+    // Construct randomized trees around each building.
     const half = Math.max(b.cols * t.width, b.rows * t.depth) / 2 + 4;
     for (let i = 0; i < 6; i++) {
       const a = rand() * Math.PI * 2;
       site.add(tree(b.x + Math.cos(a) * half, b.z + Math.sin(a) * half, 0.8 + rand() * 0.6));
     }
   }
-  // paths connecting buildings to the centre
+  
+  // Construct paths connecting each building to the center of the site.
   for (const b of buildings) {
     const len = Math.hypot(b.x, b.z);
     const p = box("Path", [1.6, 0.04, len], "#e3ddd1", [b.x / 2, 0.03, b.z / 2]);
@@ -111,6 +141,8 @@ export function buildSampleSite(buildings: SampleBuilding[], units: SampleUnit[]
     p.castShadow = false;
     site.add(p);
   }
+
+  // Add a simple circular pool to the center of the site.
   const plaza = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 0.06, 32), mat("#7ec8d3", { roughness: 0.2, metalness: 0.1 }));
   plaza.name = "Pool"; plaza.position.y = 0.04; site.add(plaza);
   return site;

@@ -19,24 +19,30 @@ const num = (v: unknown) => (v === undefined || v === null || v === "" || isNaN(
 export async function ingestGlb(buffer: ArrayBuffer): Promise<IngestedUnit[]> {
   const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
   const gltf = await new GLTFLoader().parseAsync(buffer, "");
+
   const root = gltf.scene;
   root.updateMatrixWorld(true);
+
   const units: IngestedUnit[] = [];
   const seen = new Set<string>();
+
   root.traverse((o) => {
     if (!isApartment(o) || seen.has(o.name)) return;
     seen.add(o.name);
+
     const ud = o.userData ?? {};
     const bbox = new THREE.Box3().setFromObject(o);
     const floor = num(ud["floor"]) ?? Math.max(1, Math.round((isFinite(bbox.min.y) ? bbox.min.y : 0) / FLOOR_HEIGHT) + 1);
     const devices: IngestedDevice[] = [];
     const devSeen = new Set<string>();
+
     o.traverse((c) => {
       if (c !== o && isDevice(c) && !devSeen.has(c.name)) {
         devSeen.add(c.name);
         devices.push({ object_name: c.name, ...guessDevice(c.name) });
       }
     });
+
     units.push({
       object_name: o.name,
       apt_number: String(ud["apt_number"] ?? o.name.replace(/^APT[_-]?/i, "")),
@@ -45,5 +51,6 @@ export async function ingestGlb(buffer: ArrayBuffer): Promise<IngestedUnit[]> {
       devices,
     });
   });
+  
   return units.sort((a, b) => a.apt_number.localeCompare(b.apt_number, undefined, { numeric: true }));
 }

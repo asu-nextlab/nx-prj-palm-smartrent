@@ -24,15 +24,18 @@ export const siteQuery = (id: string) => queryOptions({
       supabase.from("buildings").select("*").eq("site_id", id).order("name"),
       supabase.from("units").select("*").eq("site_id", id).order("apt_number"),
     ]);
+
     if (s.error) throw s.error;
     if (b.error) throw b.error;
     if (u.error) throw u.error;
+
     let glbUrl: string | null = null;
     if (s.data.model_path) {
       const { data, error } = await supabase.storage.from("models").createSignedUrl(s.data.model_path, 60 * 60 * 6);
       if (error) throw error;
       glbUrl = data.signedUrl;
     }
+    
     return { site: s.data, buildings: b.data, units: u.data, glbUrl };
   },
   staleTime: 1000 * 60 * 30,
