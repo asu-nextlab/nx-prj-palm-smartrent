@@ -48,16 +48,33 @@ Uploaded GLBs are the source of geometry and structure; edits in the web app are
 - **Google sign-in**, restricted to `@asu.edu` accounts
 - Deployed to an edge runtime (Cloudflare Workers)
 
-## Development
+## Running locally
 
-Requires Node.js and npm (or Bun).
+Requires **Node.js v20+** (with npm) or **Bun**.
+
+### 1. Clone and install
 
 ```sh
 git clone <this-repository-url>
 cd <repository-name>
-npm i
-npm run dev
+npm install   # or: bun install
 ```
+
+### 2. Environment variables
+
+The project includes a `.env` file with the public backend settings (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`). These are publishable values; keep the file in the project root so the local app connects to the shared database, storage and sign-in.
+
+### 3. Start the dev server
+
+```sh
+npm run dev   # or: bun run dev
+```
+
+Open the URL Vite prints (usually `http://localhost:8080`).
+
+### 4. Signing in
+
+Sign-in uses Google and is restricted to `@asu.edu` accounts. After signing in you are returned to `<your-local-origin>/auth`, so sign in with an ASU Google account while running locally.
 
 ## Credits
 
