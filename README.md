@@ -44,7 +44,7 @@ Uploaded GLBs are the source of geometry and structure; edits in the web app are
 - **Three.js** via React Three Fiber and Drei for 3D viewing and GLB parsing
 - **OpenStreetMap** tiles for site geolocation
 - **TanStack Query** for data loading and caching
-- **Lovable Cloud** (Postgres database, auth and storage) — shared site data with row-level security; GLB files in a private storage bucket
+- **Supabase** (Postgres database, auth and storage) — shared site data with row-level security; GLB files in a private storage bucket
 - **Google sign-in**, restricted to `@asu.edu` accounts
 - Deployed to an edge runtime (Cloudflare Workers)
 
@@ -78,4 +78,4 @@ Sign-in uses Google and is restricted to `@asu.edu` accounts. After signing in y
 
 ## Credits
 
-Built by ASU NEXT Lab, based on the SmartRent Apartment Explorer concept. Created with [Lovable](https://lovable.dev).
+Built by ASU NEXT Lab, based on the SmartRent Apartment Explorer concept.
