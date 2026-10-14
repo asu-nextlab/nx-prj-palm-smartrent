@@ -5,7 +5,11 @@ import * as THREE from "three";
 import { buildInterior, buildSampleSite, type SampleBuilding, type SampleUnit } from "@/lib/twin/build";
 import { layoutOf } from "@/lib/twin/templates";
 import { isApartment, isDevice } from "@/lib/twin/ingest";
-import { osmGround } from "@/lib/twin/osm";
+import { googleTiles, osmGround } from "@/lib/twin/osm";
+import { City3D } from "./City3D";
+
+export type GroundMode = "map" | "satellite" | "roadmap" | "city3d" | "plane";
+export interface GoogleTiles { key: string; sessions: { satellite: string; roadmap: string } }
 
 export interface ViewerProps {
   lat: number; lon: number; rotation: number; scale: number;
@@ -13,7 +17,8 @@ export interface ViewerProps {
   buildings: SampleBuilding[]; units: SampleUnit[];
   focusUnit: string | null; focusDevice: string | null;
   hiddenUnits?: string[];
-  view: "2d" | "3d"; ground: "map" | "plane";
+  view: "2d" | "3d"; ground: GroundMode;
+  elevation?: number; google?: GoogleTiles | null; clip?: boolean;
   onPick: (unit: string | null, device: string | null) => void;
 }
 
@@ -27,9 +32,14 @@ function findTagged(o: THREE.Object3D | null) {
   return { unit, device };
 }
 
-function Ground({ lat, lon, mode }: { lat: number; lon: number; mode: "map" | "plane" }) {
+function Ground({ lat, lon, mode, google }: { lat: number; lon: number; mode: GroundMode; google?: GoogleTiles | null }) {
   const [, force] = useState(0);
-  const g = useMemo(() => (mode === "map" ? osmGround(lat, lon, () => force((n) => n + 1)) : null), [lat, lon, mode]);
+  const g = useMemo(() => {
+    const up = () => force((n) => n + 1);
+    if (mode === "map") return osmGround(lat, lon, up);
+    if ((mode === "satellite" || mode === "roadmap") && google) return osmGround(lat, lon, up, googleTiles(google.sessions[mode], google.key));
+    return null;
+  }, [lat, lon, mode, google]);
   useEffect(() => () => g?.tex.dispose(), [g]);
   if (!g) {
     return h("mesh", { "rotation-x": -Math.PI / 2, receiveShadow: true },
@@ -43,10 +53,10 @@ function Ground({ lat, lon, mode }: { lat: number; lon: number; mode: "map" | "p
 
 // Scene graph elements are created without JSX: the dev-only source tagger adds a
 // "data-tsd-source" prop to every JSX element, which three.js objects can't accept.
-function SceneSetup() {
+function SceneSetup({ far }: { far: boolean }) {
   return h(Fragment, null,
     h("color", { attach: "background", args: ["#e9eef0"] }),
-    h("fog", { attach: "fog", args: ["#e9eef0", 260, 700] }),
+    h("fog", { attach: "fog", args: ["#e9eef0", far ? 1500 : 260, far ? 6000 : 700] }),
     h("hemisphereLight", { args: ["#ffffff", "#c9c2b4", 0.7] }),
     h("directionalLight", { position: [60, 90, 40], intensity: 1.6, castShadow: true, "shadow-mapSize": [2048, 2048],
       "shadow-camera-left": -120, "shadow-camera-right": 120, "shadow-camera-top": 120, "shadow-camera-bottom": -120 }),
@@ -61,7 +71,8 @@ function GlbRoot({ url, children }: { url: string; children: (root: THREE.Object
   return h(Fragment, null, children(gltf.scene));
 }
 
-function Model({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
+function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerProps; target: React.MutableRefObject<THREE.Object3D | null> }) {
+  useEffect(() => { target.current = root; return () => { if (target.current === root) target.current = null; }; }, [root, target]);
   const controls = useRef<CameraControls>(null);
   const [helper, setHelper] = useState<THREE.Box3Helper | null>(null);
   const isSample = !props.glbUrl;
@@ -117,26 +128,30 @@ function Model({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
   };
 
   return h(Fragment, null,
-    h(CameraControls, { ref: controls, makeDefault: true, maxPolarAngle: props.view === "2d" ? 0.01 : Math.PI / 2.1, minDistance: 2, maxDistance: 600 }),
-    h("group", { "rotation-y": THREE.MathUtils.degToRad(props.rotation), scale: props.scale },
+    h(CameraControls, { ref: controls, makeDefault: true, maxPolarAngle: props.view === "2d" ? 0.01 : Math.PI / 2.1, minDistance: 2, maxDistance: props.ground === "city3d" ? 3000 : 600 }),
+    h("group", { "rotation-y": THREE.MathUtils.degToRad(props.rotation), scale: props.scale, "position-y": props.elevation ?? 0 },
       h("primitive", { object: root, onClick })),
     helper ? h("primitive", { object: helper }) : null);
 }
 
-function SampleRoot({ props }: { props: ViewerProps }) {
+function SampleRoot({ props, target }: { props: ViewerProps; target: React.MutableRefObject<THREE.Object3D | null> }) {
   const root = useMemo(() => buildSampleSite(props.buildings, props.units), [props.buildings, props.units]);
-  return h(Model, { root, props });
+  return h(Model, { root, props, target });
 }
 
 export default function SiteViewer(props: ViewerProps) {
+  const target = useRef<THREE.Object3D | null>(null);
+  const city = props.ground === "city3d" && props.google;
   return (
     <Canvas shadows dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.1, far: 3000 }} onPointerMissed={() => props.onPick(null, null)}>
-      {h(SceneSetup)}
-      {h(Ground, { lat: props.lat, lon: props.lon, mode: props.ground })}
+      {h(SceneSetup, { far: !!city })}
+      {city
+        ? h(City3D, { key: `${props.lat},${props.lon}`, lat: props.lat, lon: props.lon, apiKey: props.google!.key, target, clip: props.clip ?? true })
+        : h(Ground, { lat: props.lat, lon: props.lon, mode: props.ground, google: props.google })}
       {h(Suspense, { fallback: null },
         props.glbUrl
-          ? h(GlbRoot, { url: props.glbUrl, children: (root: THREE.Object3D) => h(Model, { root, props }) })
-          : h(SampleRoot, { props }))}
+          ? h(GlbRoot, { url: props.glbUrl, children: (root: THREE.Object3D) => h(Model, { root, props, target }) })
+          : h(SampleRoot, { props, target }))}
     </Canvas>
   );
 }
