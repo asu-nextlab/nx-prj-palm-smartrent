@@ -60,12 +60,12 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
         if (!b.isEmpty()) {
           b.expandByVector(new THREE.Vector3(1.5, 0, 1.5));
           b.min.y = -30; b.max.y = Math.max(b.max.y, 0) + 400;
-          planes[0].set(new THREE.Vector3(1, 0, 0), -b.max.x);
-          planes[1].set(new THREE.Vector3(-1, 0, 0), b.min.x);
-          planes[2].set(new THREE.Vector3(0, 1, 0), -b.max.y);
-          planes[3].set(new THREE.Vector3(0, -1, 0), b.min.y);
-          planes[4].set(new THREE.Vector3(0, 0, 1), -b.max.z);
-          planes[5].set(new THREE.Vector3(0, 0, -1), b.min.z);
+          planes[0]!.set(new THREE.Vector3(1, 0, 0), -b.max.x);
+          planes[1]!.set(new THREE.Vector3(-1, 0, 0), b.min.x);
+          planes[2]!.set(new THREE.Vector3(0, 1, 0), -b.max.y);
+          planes[3]!.set(new THREE.Vector3(0, -1, 0), b.min.y);
+          planes[4]!.set(new THREE.Vector3(0, 0, 1), -b.max.z);
+          planes[5]!.set(new THREE.Vector3(0, 0, -1), b.min.z);
           return;
         }
       }

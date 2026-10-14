@@ -147,7 +147,7 @@ export default function SiteViewer(props: ViewerProps) {
       {h(SceneSetup, { far: !!city })}
       {city
         ? h(City3D, { key: `${props.lat},${props.lon}`, lat: props.lat, lon: props.lon, apiKey: props.google!.key, target, clip: props.clip ?? true })
-        : h(Ground, { lat: props.lat, lon: props.lon, mode: props.ground, google: props.google })}
+        : h(Ground, { lat: props.lat, lon: props.lon, mode: props.ground, google: props.google ?? null })}
       {h(Suspense, { fallback: null },
         props.glbUrl
           ? h(GlbRoot, { url: props.glbUrl, children: (root: THREE.Object3D) => h(Model, { root, props, target }) })
