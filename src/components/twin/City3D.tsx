@@ -70,7 +70,7 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
         }
       }
       // Disabled: a box far away clips nothing.
-      for (let i = 0; i < 6; i++) planes[i].set(new THREE.Vector3(i % 2 ? -1 : 1, 0, 0), i % 2 ? -1e9 : -1e9);
+      for (const p of planes) p.set(new THREE.Vector3(1, 0, 0), 1e9);
     }
   });
 
