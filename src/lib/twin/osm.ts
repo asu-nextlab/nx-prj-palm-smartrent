@@ -3,10 +3,15 @@ import * as THREE from "three";
 const ZOOM = 18;
 const GRID = 5; // tiles per side
 
-/** Builds a ground texture from OpenStreetMap tiles centred on lat/lon.
+export type TileUrl = (z: number, x: number, y: number) => string;
+export const osmTiles: TileUrl = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+export const googleTiles = (session: string, key: string): TileUrl => (z, x, y) =>
+  `https://tile.googleapis.com/v1/2dtiles/${z}/${x}/${y}?session=${encodeURIComponent(session)}&key=${encodeURIComponent(key)}`;
+
+/** Builds a ground texture from map tiles (OpenStreetMap by default) centred on lat/lon.
  *  Returns the texture, the plane size in metres, and the offset that places
  *  the requested coordinate at the scene origin. */
-export function osmGround(lat: number, lon: number, onUpdate: () => void) {
+export function osmGround(lat: number, lon: number, onUpdate: () => void, tileUrl: TileUrl = osmTiles) {
   const n = 2 ** ZOOM;
   const xf = ((lon + 180) / 360) * n;
   const latR = (lat * Math.PI) / 180;
@@ -24,13 +29,12 @@ export function osmGround(lat: number, lon: number, onUpdate: () => void) {
   for (let i = 0; i < GRID; i++) for (let j = 0; j < GRID; j++) {
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.onload = () => { ctx.drawImage(img, i * 256, j * 256); tex.needsUpdate = true; loaded++; onUpdate(); };
+    img.onload = () => { ctx.drawImage(img, i * 256, j * 256, 256, 256); tex.needsUpdate = true; loaded++; onUpdate(); };
     img.onerror = () => { failed++; onUpdate(); };
-    img.src = `https://tile.openstreetmap.org/${ZOOM}/${tx - half + i}/${ty - half + j}.png`;
+    img.src = tileUrl(ZOOM, tx - half + i, ty - half + j);
   }
   const mpp = (156543.03392 * Math.cos(latR)) / n; // metres per pixel
   const size = GRID * 256 * mpp;
-  // pixel position of the coordinate within the canvas
   const px = (xf - (tx - half)) * 256, py = (yf - (ty - half)) * 256;
   const offset: [number, number] = [size / 2 - px * mpp, size / 2 - py * mpp];
   return { tex, size, offset, status: () => ({ loaded, failed, total: GRID * GRID }) };
