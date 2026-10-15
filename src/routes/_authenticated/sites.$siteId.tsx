@@ -39,14 +39,19 @@ function Seg({ value, options, onChange }: { value: string; options: [string, st
   );
 }
 
+const viewPrefs: { ground: GroundMode; clip: boolean } = { ground: "map", clip: true };
+
 function SitePage() {
   const { siteId } = Route.useParams();
   const { data, isLoading, error } = useQuery(siteQuery(siteId));
   const [unit, setUnit] = useState<string | null>(null);
   const [device, setDevice] = useState<string | null>(null);
   const [view, setView] = useState<"2d" | "3d">("3d");
-  const [ground, setGround] = useState<GroundMode>("map");
-  const [clip, setClip] = useState(true);
+  // Kept outside component state so a refresh/remount after a placement change keeps the chosen map type.
+  const [ground, setGroundState] = useState<GroundMode>(() => viewPrefs.ground);
+  const setGround = (g: GroundMode) => { viewPrefs.ground = g; setGroundState(g); };
+  const [clip, setClipState] = useState(() => viewPrefs.clip);
+  const setClip = (c: boolean) => { viewPrefs.clip = c; setClipState(c); };
   const needsGoogle = ground === "satellite" || ground === "roadmap" || ground === "city3d";
   const google = useQuery({ queryKey: ["google-tiles"], queryFn: () => getGoogleTiles(), enabled: needsGoogle, staleTime: 1000 * 60 * 60 * 6, retry: false });
   const [building, setBuilding] = useState("all");
