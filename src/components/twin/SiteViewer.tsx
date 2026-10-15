@@ -169,7 +169,7 @@ export default function SiteViewer(props: ViewerProps) {
             ? h(GlbRoot, { url: props.glbUrl, children: (root: THREE.Object3D) => h(Model, { root, props, target }) })
             : h(SampleRoot, { props, target }))}
       </Canvas>
-      <div className="pointer-events-none absolute right-3 top-3 h-14 w-14 rounded-full border border-border bg-card/90 shadow-md" aria-label="Compass">
+      <div className="pointer-events-none absolute bottom-3 left-3 h-14 w-14 rounded-full border border-border bg-card/90 shadow-md" aria-label="Compass">
         <div ref={compass} className="relative h-full w-full">
           <svg viewBox="0 0 56 56" className="absolute inset-0 h-full w-full">
             <polygon points="28,9 33,28 23,28" className="fill-destructive" />
