@@ -39,6 +39,10 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
     return () => { t.removeEventListener("load-model", onLoad as never); t.dispose(); setTiles(null); };
   }, [apiKey, lat, lon, camera, gl, planes]);
 
+  // The reorientation plugin owns tiles.group's transform (Z north, X west, Y up), so we
+  // wrap it: turn 180° so north is -Z like our street map, and lift/lower the wrapper to ground it.
+  const wrap = useMemo(() => { const g = new THREE.Group(); g.rotation.y = Math.PI; return g; }, []);
+  useEffect(() => { if (!tiles) return; wrap.add(tiles.group); return () => { wrap.remove(tiles.group); }; }, [tiles, wrap]);
   const state = useMemo(() => ({ grounded: false, frame: 0, ray: new THREE.Raycaster() }), [tiles]);
   useFrame(() => {
     if (!tiles) return;
@@ -48,12 +52,12 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
     state.frame++;
     // Auto-ground: drop a ray straight down at the site origin until it hits the scan.
     if (!state.grounded && state.frame % 20 === 0) {
-      tiles.group.position.y = 0; tiles.group.updateMatrixWorld(true);
+      wrap.position.y = 0; wrap.updateMatrixWorld(true);
       state.ray.set(new THREE.Vector3(0, 5000, 0), new THREE.Vector3(0, -1, 0));
       state.ray.far = 20000;
       const hit = state.ray.intersectObject(tiles.group, true)[0];
-      if (hit && state.frame > 120) { tiles.group.position.y = -hit.point.y; state.grounded = true; }
-      else if (hit) tiles.group.position.y = -hit.point.y;
+      if (hit && state.frame > 120) { wrap.position.y = -hit.point.y; state.grounded = true; }
+      else if (hit) wrap.position.y = -hit.point.y;
     }
     // Clip box: world-space bounds of our model, from below ground to well above the roofline.
     if (state.frame % 15 === 0) {
@@ -77,5 +81,5 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
     }
   });
 
-  return tiles ? h("primitive", { object: tiles.group }) : null;
+  return tiles ? h("primitive", { object: wrap }) : null;
 }
