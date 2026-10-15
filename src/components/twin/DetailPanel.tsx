@@ -7,6 +7,10 @@ import { DEVICE_KINDS, guessDevice, layoutOf } from "@/lib/twin/templates";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 function DeviceEditor({ device, onDeleted }: { device: Device; onDeleted: () => void }) {
   const qc = useQueryClient();
@@ -25,7 +29,6 @@ function DeviceEditor({ device, onDeleted }: { device: Device; onDeleted: () => 
     qc.invalidateQueries({ queryKey: ["site-devices"] });
   };
   const remove = async (): Promise<void> => {
-    if (!confirm(`Delete ${device.name} (${device.object_name})? This removes its data for everyone. The 3D model isn't changed, but the object will be hidden.`)) return;
     try {
       await deleteDevice(device.id);
     } catch (e) {
@@ -56,7 +59,25 @@ function DeviceEditor({ device, onDeleted }: { device: Device; onDeleted: () => 
       ))}
       <div className="flex gap-2">
         <Button size="sm" className="flex-1" onClick={save}>Save device</Button>
-        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={remove}>Delete</Button>
+        {/* In-app dialog rather than window.confirm, which embedded browsers can suppress. */}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">Delete</Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {device.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the data for <span className="font-mono">{device.object_name}</span> for everyone. The 3D model isn't changed;
+                its object is hidden, and you can bring it back later with Add device.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={remove}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
