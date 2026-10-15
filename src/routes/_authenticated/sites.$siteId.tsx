@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { siteDevicesQuery, siteQuery } from "@/lib/twin/data";
+import { getGoogleTiles } from "@/lib/twin/google.functions";
+import type { GroundMode } from "@/components/twin/SiteViewer";
 import { AppHeader } from "@/components/twin/AppHeader";
 import { UnitTable } from "@/components/twin/UnitTable";
 import { DetailPanel } from "@/components/twin/DetailPanel";
@@ -37,6 +39,8 @@ function Seg({ value, options, onChange }: { value: string; options: [string, st
   );
 }
 
+const viewPrefs: { ground: GroundMode; clip: boolean } = { ground: "map", clip: true };
+
 function SitePage() {
   const { siteId } = Route.useParams();
   const { data, isLoading, error } = useQuery(siteQuery(siteId));
@@ -45,10 +49,19 @@ function SitePage() {
   const [unit, setUnit] = useState<string | null>(null);
   const [device, setDevice] = useState<string | null>(null);
   const [view, setView] = useState<"2d" | "3d">("3d");
-  const [ground, setGround] = useState<"map" | "plane">("map");
+  // Kept outside component state so a refresh/remount after a placement change keeps the chosen map type.
+  const [ground, setGroundState] = useState<GroundMode>(() => viewPrefs.ground);
+  const setGround = (g: GroundMode) => { viewPrefs.ground = g; setGroundState(g); };
+  const [clip, setClipState] = useState(() => viewPrefs.clip);
+  const setClip = (c: boolean) => { viewPrefs.clip = c; setClipState(c); };
+  const needsGoogle = ground === "satellite" || ground === "roadmap" || ground === "city3d";
+  const google = useQuery({ queryKey: ["google-tiles"], queryFn: () => getGoogleTiles(), enabled: needsGoogle, staleTime: 1000 * 60 * 60 * 6, retry: false });
   const [building, setBuilding] = useState("all");
   const [floor, setFloor] = useState<number | null>(null);
 
+  // Signed model URLs change on every refetch; reuse the first one so the 3D view doesn't reload.
+  const glbUrlRef = useRef<{ path: string | null | undefined; url: string | null }>({ path: undefined, url: null });
+  if (data && glbUrlRef.current.path !== data.site.model_path) glbUrlRef.current = { path: data.site.model_path, url: data.glbUrl };
   const sampleBuildings = useMemo(() => data?.buildings ?? [], [data?.buildings]);
   const sampleUnits = useMemo(() => data?.units ?? [], [data?.units]);
   const focusedUnit = sampleUnits.find((u) => u.object_name === unit) ?? null;
@@ -73,14 +86,17 @@ function SitePage() {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="relative min-h-0 flex-[3]">
             <Suspense fallback={<div className="grid h-full place-items-center text-muted-foreground">Loading 3D view…</div>}>
-              <SiteViewer lat={site.lat} lon={site.lon} rotation={site.rotation} scale={site.scale} glbUrl={data.glbUrl}
+              <SiteViewer lat={site.lat} lon={site.lon} rotation={site.rotation} scale={site.scale} glbUrl={glbUrlRef.current.url} elevation={site.elevation ?? 0} google={google.data ?? null} clip={clip}
                 buildings={sampleBuildings} units={sampleUnits} hiddenUnits={hiddenUnits} cutaway={floor != null} focusUnit={unit} focusDevice={device} view={view} ground={ground}
                 devices={siteDevices} onModelDevices={setModelDevices}
                 onPick={(u, d) => { setUnit(u); setDevice(d); }} />
             </Suspense>
             <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-wrap items-start gap-2 [&>*]:pointer-events-auto">
               <Seg value={view} onChange={(v) => setView(v as "2d" | "3d")} options={[["2d", "2D plan"], ["3d", "3D explore"]]} />
-              <Seg value={ground} onChange={(v) => setGround(v as "map" | "plane")} options={[["map", "Street map"], ["plane", "Simple plane"]]} />
+              <Seg value={ground} onChange={(v) => setGround(v as GroundMode)} options={[["map", "Street map"], ["satellite", "Google satellite"], ["roadmap", "Google map"], ["city3d", "3D city"], ["plane", "Simple plane"]]} />
+              {ground === "city3d" && <Button size="sm" variant="secondary" className="h-8 shadow-sm" aria-pressed={clip} onClick={() => setClip(!clip)}>{clip ? "Existing buildings: cut out" : "Existing buildings: shown"}</Button>}
+              {needsGoogle && google.isLoading && <span className="rounded-md bg-card/95 px-2 py-1 text-xs text-muted-foreground ring-1 ring-border">Loading Google imagery…</span>}
+              {needsGoogle && google.error && <span className="rounded-md bg-card/95 px-2 py-1 text-xs text-destructive ring-1 ring-border">Google imagery unavailable: {(google.error as Error).message.slice(0, 120)}</span>}
               {unit && <Button size="sm" variant="secondary" className="h-8 shadow-sm" onClick={() => { setUnit(null); setDevice(null); }}>Show entire community</Button>}
               <div className="ml-auto"><PlacementPopover site={site} /></div>
             </div>
@@ -95,6 +111,7 @@ function SitePage() {
                 <button onClick={() => setFloor(null)} aria-pressed={floor == null} className={cn("h-7 w-10 rounded-md text-[0.65rem] font-medium", floor == null ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted")}>All</button>
               </nav>
             )}
+            {needsGoogle && <span className="absolute bottom-2 right-2 rounded bg-card/90 px-2 py-0.5 text-[0.65rem] font-medium text-muted-foreground">Google · Map data ©{new Date().getFullYear()} Google</span>}
             {ground === "map" && <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" className="absolute bottom-2 right-2 rounded bg-card/90 px-2 py-0.5 text-[0.65rem] text-muted-foreground">© OpenStreetMap contributors</a>}
           </div>
           <div className="flex min-h-0 flex-[2] flex-col border-t bg-card">
@@ -124,14 +141,14 @@ function SitePage() {
   );
 }
 
-function PlacementPopover({ site }: { site: { id: string; lat: number; lon: number; rotation: number; scale: number; kind: string; model_path: string | null; created_by: string | null } }) {
+function PlacementPopover({ site }: { site: { id: string; lat: number; lon: number; rotation: number; scale: number; elevation: number; kind: string; model_path: string | null; created_by: string | null } }) {
   const qc = useQueryClient();
-  const [f, setF] = useState({ lat: String(site.lat), lon: String(site.lon), rotation: String(site.rotation), scale: String(site.scale) });
+  const [f, setF] = useState({ lat: String(site.lat), lon: String(site.lon), rotation: String(site.rotation), scale: String(site.scale), elevation: String(+(site.elevation / 0.3048).toFixed(2)) });
   const [step, setStep] = useState(10);
   const save = async (over?: Partial<typeof f>): Promise<void> => {
     if (!over && !confirm("This will overwrite the saved map placement for everyone. Are you sure?")) return;
     const v = { ...f, ...over };
-    const patch = { lat: Number(v.lat), lon: Number(v.lon), rotation: Number(v.rotation), scale: Number(v.scale) };
+    const patch = { lat: Number(v.lat), lon: Number(v.lon), rotation: Number(v.rotation), scale: Number(v.scale), elevation: Number(v.elevation) * 0.3048 };
     if (Object.values(patch).some(isNaN)) { toast.error("Enter numbers only"); return; }
     const { error } = await supabase.from("sites").update(patch).eq("id", site.id);
     if (error) { toast.error(error.message); return; }
@@ -149,13 +166,20 @@ function PlacementPopover({ site }: { site: { id: string; lat: number; lon: numb
     setF({ ...f, ...next });
     void save(next);
   };
+  const lift = (dir: number) => {
+    const e = Number(f.elevation);
+    if (isNaN(e)) { toast.error("Enter numbers only"); return; }
+    const next = { elevation: String(+(e + dir * step).toFixed(2)) };
+    setF({ ...f, ...next });
+    void save(next);
+  };
   return (
     <Popover>
       <PopoverTrigger asChild><Button size="sm" variant="secondary" className="h-8 shadow-sm">Map placement</Button></PopoverTrigger>
       <PopoverContent align="end" className="w-72 space-y-3">
         <div className="grid grid-cols-2 gap-2">
-          {(["lat", "lon", "rotation", "scale"] as const).map((k) => (
-            <div key={k}><Label className="text-xs capitalize">{k === "rotation" ? "Rotation °" : k}</Label>
+          {(["lat", "lon", "rotation", "scale", "elevation"] as const).map((k) => (
+            <div key={k}><Label className="text-xs capitalize">{k === "rotation" ? "Rotation °" : k === "elevation" ? "Height (ft)" : k}</Label>
               <Input className="h-8" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></div>
           ))}
         </div>
@@ -169,6 +193,10 @@ function PlacementPopover({ site }: { site: { id: string; lat: number; lon: numb
             <Button size="sm" variant="outline" className="h-8" aria-label="Move west" onClick={() => nudge(0, -1)}>W</Button><span />
             <Button size="sm" variant="outline" className="h-8" aria-label="Move east" onClick={() => nudge(0, 1)}>E</Button>
             <span /><Button size="sm" variant="outline" className="h-8" aria-label="Move south" onClick={() => nudge(-1, 0)}>S</Button><span />
+          </div>
+          <div className="flex justify-center gap-2">
+            <Button size="sm" variant="outline" className="h-8" aria-label="Move up" onClick={() => lift(1)}>▲ Up</Button>
+            <Button size="sm" variant="outline" className="h-8" aria-label="Move down" onClick={() => lift(-1)}>▼ Down</Button>
           </div>
         </div>
         <Button size="sm" className="w-full" onClick={() => save()}>Save placement</Button>

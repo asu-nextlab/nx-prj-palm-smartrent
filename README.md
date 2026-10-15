@@ -44,31 +44,46 @@ Uploaded GLBs are the source of geometry and structure; edits in the web app are
 - **Three.js** via React Three Fiber and Drei for 3D viewing and GLB parsing
 - **OpenStreetMap** tiles for site geolocation
 - **TanStack Query** for data loading and caching
-- **Lovable Cloud** (Postgres database, auth and storage) — shared site data with row-level security; GLB files in a private storage bucket
+- **Supabase** (Postgres database, auth and storage) — shared site data with row-level security; GLB files in a private storage bucket
 - **Google sign-in**, restricted to `@asu.edu` accounts
 - Deployed to an edge runtime (Cloudflare Workers)
 
-## Development
+## Running locally
 
-Requires Node.js and npm (or Bun).
+Requires **Node.js v20+** (with npm) or **Bun**.
+
+### 1. Clone and install
 
 ```sh
 git clone <this-repository-url>
 cd <repository-name>
-npm i
-npm run dev
+npm install   # or: bun install
 ```
 
-The app runs at http://localhost:8080.
+### 2. Environment variables
 
-### Local development with a dev database
+The project includes a `.env` file with the public backend settings (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`). These are publishable values; keep the file in the project root so the local app connects to the shared database, storage and sign-in.
+
+### 3. Start the dev server
+
+```sh
+npm run dev   # or: bun run dev
+```
+
+Open the URL Vite prints (usually `http://localhost:8080`).
+
+### 4. Signing in
+
+Sign-in uses Google and is restricted to `@asu.edu` accounts. Google sign-in only works on the Lovable-hosted site: on `localhost` it fails with "redirect_uri is not allowed". To sign in locally, use a dev database (below).
+
+### 5. Local development with a dev database
 
 Signing in with ASU Google only works on the Lovable-hosted site, so a local copy can't log in to the live database. Instead, point your local copy at a separate dev Supabase project with its own email login. This also keeps test edits away from the live data.
 
 **One-time setup per team (skip if someone already made the dev project):**
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. In **SQL Editor**, run this line, then each file in `drizzle/migrations/` in order (`0000` → `0003`). This creates the tables, the ASU-only access rules and three sample sites.
+2. In **SQL Editor**, run this line, then each file in `drizzle/migrations/` in order (`0000` → `0004`). This creates the tables, the ASU-only access rules and three sample sites.
    ```sql
    insert into storage.buckets (id, name, public) values ('models', 'models', false) on conflict (id) do nothing;
    ```
@@ -84,4 +99,4 @@ The dev login only appears when running locally with `VITE_DEV_LOGIN=true`; it n
 
 ## Credits
 
-Built by ASU NEXT Lab, based on the SmartRent Apartment Explorer concept. Created with [Lovable](https://lovable.dev).
+Built by ASU NEXT Lab, based on the SmartRent Apartment Explorer concept.

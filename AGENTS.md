@@ -10,4 +10,5 @@
 <!-- LOVABLE:END -->
 
 - Digital twin models: apartments are scene objects named `APT_<number>` and devices are descendants named `DEV_<kind>`; both the built-in sample sites (src/lib/twin/build.ts) and uploaded GLBs use this one convention so picking, ingest and the spreadsheet share a single code path.
-- Site data (sites, buildings, units, devices) lives in Lovable Cloud and is shared by every signed-in team member; GLB files go in the private `models` storage bucket.
+- Site data (sites, buildings, units, devices) lives in the shared backend database and is shared by every signed-in team member; GLB files go in the private `models` storage bucket.
+- Google 2D imagery and 3D city tiles use a team-only server function that hands the browser a referrer-restricted Google Map Tiles key; the 3D tiles are clipped by an auto box around the model so scanned buildings don't overlap ours.
