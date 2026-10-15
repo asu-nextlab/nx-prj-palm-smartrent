@@ -131,8 +131,6 @@ function PlacementPopover({ site }: { site: { id: string; lat: number; lon: numb
   const qc = useQueryClient();
   const [f, setF] = useState({ lat: String(site.lat), lon: String(site.lon), rotation: String(site.rotation), scale: String(site.scale), elevation: String(+(site.elevation / 0.3048).toFixed(2)) });
   const [step, setStep] = useState(10);
-  const [open, setOpen] = useState(false);
-  const [orig, setOrig] = useState(f);
   const save = async (over?: Partial<typeof f>): Promise<void> => {
     if (!over && !confirm("This will overwrite the saved map placement for everyone. Are you sure?")) return;
     const v = { ...f, ...over };
@@ -161,11 +159,8 @@ function PlacementPopover({ site }: { site: { id: string; lat: number; lon: numb
     setF({ ...f, ...next });
     void save(next);
   };
-  const onOpen = (o: boolean) => { if (o) setOrig(f); setOpen(o); };
-  const cancel = async () => { setF(orig); await save(orig); setOpen(false); };
-  const saveAll = async () => { if (!confirm("This will overwrite the saved map placement for everyone. Are you sure?")) return; await save(f); toast.success("Placement saved"); setOrig(f); setOpen(false); };
   return (
-    <Popover open={open} onOpenChange={onOpen}>
+    <Popover>
       <PopoverTrigger asChild><Button size="sm" variant="secondary" className="h-8 shadow-sm">Map placement</Button></PopoverTrigger>
       <PopoverContent align="end" className="w-72 space-y-3">
         <div className="grid grid-cols-2 gap-2">
@@ -190,11 +185,7 @@ function PlacementPopover({ site }: { site: { id: string; lat: number; lon: numb
             <Button size="sm" variant="outline" className="h-8" aria-label="Move down" onClick={() => lift(-1)}>▼ Down</Button>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <Button size="sm" variant="outline" onClick={() => void save(f)}>Update</Button>
-          <Button size="sm" variant="ghost" onClick={() => void cancel()}>Cancel</Button>
-          <Button size="sm" onClick={() => void saveAll()}>Save</Button>
-        </div>
+        <Button size="sm" className="w-full" onClick={() => save()}>Save placement</Button>
       </PopoverContent>
     </Popover>
   );
