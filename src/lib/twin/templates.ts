@@ -122,6 +122,10 @@ const DEVICE_TYPES: [RegExp, string, string][] = [
   [/sensor|leak/i, "Sensor", "Leak sensor"],
 ];
 
+/** Kinds offered when adding a device in the web app. Names and types come from
+ *  guessDevice, so web-added devices match ones ingested from a GLB. */
+export const DEVICE_KINDS = ["thermostat", "lock", "leak_sensor", "fridge", "range", "tv", "washer", "dryer", "dishwasher", "light"] as const;
+
 export function guessDevice(objectName: string): { name: string; type: string } {
   for (const [re, name, type] of DEVICE_TYPES) if (re.test(objectName)) return { name, type };
   const raw = objectName.replace(/^DEV_?/i, "").replace(/_\d+$/, "").replace(/_/g, " ");

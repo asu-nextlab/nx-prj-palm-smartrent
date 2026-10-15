@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { siteQuery } from "@/lib/twin/data";
+import { siteDevicesQuery, siteQuery } from "@/lib/twin/data";
 import { AppHeader } from "@/components/twin/AppHeader";
 import { UnitTable } from "@/components/twin/UnitTable";
 import { DetailPanel } from "@/components/twin/DetailPanel";
@@ -40,6 +40,8 @@ function Seg({ value, options, onChange }: { value: string; options: [string, st
 function SitePage() {
   const { siteId } = Route.useParams();
   const { data, isLoading, error } = useQuery(siteQuery(siteId));
+  const { data: siteDevices } = useQuery(siteDevicesQuery(siteId));
+  const [modelDevices, setModelDevices] = useState<Record<string, string[]> | null>(null);
   const [unit, setUnit] = useState<string | null>(null);
   const [device, setDevice] = useState<string | null>(null);
   const [view, setView] = useState<"2d" | "3d">("3d");
@@ -71,6 +73,7 @@ function SitePage() {
             <Suspense fallback={<div className="grid h-full place-items-center text-muted-foreground">Loading 3D view…</div>}>
               <SiteViewer lat={site.lat} lon={site.lon} rotation={site.rotation} scale={site.scale} glbUrl={data.glbUrl}
                 buildings={sampleBuildings} units={sampleUnits} hiddenUnits={hiddenUnits} focusUnit={unit} focusDevice={device} view={view} ground={ground}
+                devices={siteDevices} onModelDevices={setModelDevices}
                 onPick={(u, d) => { setUnit(u); setDevice(d); }} />
             </Suspense>
             <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-wrap items-start gap-2 [&>*]:pointer-events-auto">
@@ -110,7 +113,8 @@ function SitePage() {
         </div>
         {selectedUnit && (
           <aside className="w-80 shrink-0 border-l bg-background">
-            <DetailPanel unit={selectedUnit} device={device} onSelectDevice={setDevice} onClose={() => { setUnit(null); setDevice(null); }} />
+            <DetailPanel unit={selectedUnit} device={device} modelDevices={modelDevices ? modelDevices[selectedUnit.object_name] ?? [] : null}
+              onSelectDevice={setDevice} onClose={() => { setUnit(null); setDevice(null); }} />
           </aside>
         )}
       </div>

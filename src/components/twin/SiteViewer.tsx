@@ -15,6 +15,47 @@ export interface ViewerProps {
   hiddenUnits?: string[];
   view: "2d" | "3d"; ground: "map" | "plane";
   onPick: (unit: string | null, device: string | null) => void;
+  /** Device rows for the whole site. Meshes without a row are hidden; rows without a mesh get a marker. */
+  devices?: { object_name: string; unit_object_name: string; status: string }[] | undefined;
+  /** Reports the DEV_ objects each apartment has in the model (apartment object name → device object names). */
+  onModelDevices?: ((byUnit: Record<string, string[]>) => void) | undefined;
+}
+
+/** DEV_ object names the model has for an apartment. Sample sites build interiors lazily, so use their template. */
+function modelDeviceNames(apt: THREE.Object3D, isSample: boolean): string[] {
+  if (isSample) return layoutOf(apt.userData["layout"]).devices.map((d) => d.obj);
+  const names = new Set<string>();
+  apt.traverse((o) => { if (o !== apt && isDevice(o) && !o.userData["webMarker"]) names.add(o.name); });
+  return [...names];
+}
+
+const savedRaycast = new WeakMap<THREE.Object3D, THREE.Object3D["raycast"]>();
+/** Hides a DEV_ object and stops it being picked (three.js still raycasts invisible meshes). */
+function setDeviceHidden(o: THREE.Object3D, hidden: boolean) {
+  o.visible = !hidden;
+  o.traverse((m) => {
+    if (!(m as THREE.Mesh).isMesh) return;
+    if (hidden && !savedRaycast.has(m)) { savedRaycast.set(m, m.raycast); m.raycast = () => {}; }
+    if (!hidden && savedRaycast.has(m)) { m.raycast = savedRaycast.get(m)!; savedRaycast.delete(m); }
+  });
+}
+
+const markerGeometry = new THREE.SphereGeometry(0.16, 20, 14);
+/** Marker for a device added in the web app (no mesh in the uploaded model), laid out in a grid inside the apartment. */
+function deviceMarker(apt: THREE.Object3D, aptBox: THREE.Box3, objectName: string, status: string, index: number) {
+  const color = status === "online" ? "#32bdcd" : "#ff8a3d";
+  const m = new THREE.Mesh(markerGeometry, new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5 }));
+  m.name = objectName;
+  m.userData["webMarker"] = true;
+  const spacing = 0.55, perRow = Math.max(1, Math.floor((aptBox.max.x - aptBox.min.x - 0.6) / spacing));
+  const center = aptBox.getCenter(new THREE.Vector3());
+  const world = new THREE.Vector3(
+    aptBox.min.x + 0.6 + (index % perRow) * spacing,
+    Math.min(aptBox.min.y + 1.2, aptBox.max.y - 0.3),
+    center.z + Math.floor(index / perRow) * spacing);
+  m.position.copy(apt.worldToLocal(world));
+  m.scale.divide(apt.getWorldScale(new THREE.Vector3()));
+  return m;
 }
 
 function findTagged(o: THREE.Object3D | null) {
@@ -93,6 +134,43 @@ function Model({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
     const sel = (props.focusDevice && focused?.getObjectByName(props.focusDevice)) || focused;
     setHelper(sel ? new THREE.Box3Helper(boxOf(sel).expandByScalar(0.08), new THREE.Color(props.focusDevice ? "#ff8a3d" : "#32bdcd")) : null);
   }, [root, props.focusUnit, props.focusDevice, isSample, props.hiddenUnits]);
+
+  // Report which DEV_ objects the model has, so the panel can offer them when adding a device.
+  const { onModelDevices } = props;
+  useEffect(() => {
+    if (!onModelDevices) return;
+    const byUnit: Record<string, string[]> = {};
+    root.traverse((o) => { if (isApartment(o)) byUnit[o.name] = modelDeviceNames(o, isSample); });
+    onModelDevices(byUnit);
+  }, [root, isSample, onModelDevices]);
+
+  // Keep the 3D view in step with the devices table (the GLB itself is never edited):
+  // DEV_ meshes whose row was deleted are hidden; rows with no mesh get a marker.
+  // Runs after the effect above that builds sample interiors on focus.
+  useEffect(() => {
+    if (!props.devices) return;
+    const rowsByUnit = new Map<string, Map<string, string>>();
+    for (const d of props.devices) {
+      if (!rowsByUnit.has(d.unit_object_name)) rowsByUnit.set(d.unit_object_name, new Map());
+      rowsByUnit.get(d.unit_object_name)!.set(d.object_name, d.status);
+    }
+    root.updateMatrixWorld(true);
+    const apts: THREE.Object3D[] = [];
+    root.traverse((o) => { if (isApartment(o)) apts.push(o); });
+    for (const apt of apts) {
+      for (const old of apt.children.filter((c) => c.userData["webMarker"])) {
+        apt.remove(old);
+        ((old as THREE.Mesh).material as THREE.Material).dispose();
+      }
+      const rows = rowsByUnit.get(apt.name) ?? new Map<string, string>();
+      apt.traverse((o) => { if (o !== apt && isDevice(o)) setDeviceHidden(o, !rows.has(o.name)); });
+      const inModel = new Set(modelDeviceNames(apt, isSample));
+      const missing = [...rows].filter(([name]) => !inModel.has(name));
+      if (!missing.length) continue;
+      const aptBox = new THREE.Box3().setFromObject(apt);
+      missing.forEach(([name, status], i) => apt.add(deviceMarker(apt, aptBox, name, status, i)));
+    }
+  }, [root, props.devices, isSample, props.focusUnit]);
 
   // camera
   useEffect(() => {
