@@ -35,7 +35,7 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
       });
     };
     t.addEventListener("load-model", onLoad as never);
-    setTiles(t);
+    setTiles(t); (window as unknown as Record<string, unknown>).__tiles = t;
     return () => { t.removeEventListener("load-model", onLoad as never); t.dispose(); setTiles(null); };
   }, [apiKey, lat, lon, camera, gl, planes]);
 
