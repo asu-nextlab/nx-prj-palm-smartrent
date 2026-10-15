@@ -1,5 +1,5 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { createElement as h, useEffect, useMemo, useState } from "react";
+import { createElement as h, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { TilesRenderer } from "3d-tiles-renderer";
 import { GoogleCloudAuthPlugin, ReorientationPlugin } from "3d-tiles-renderer/plugins";
@@ -16,13 +16,14 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
   const { camera, gl } = useThree();
   const planes = useMemo(() => Array.from({ length: 6 }, () => new THREE.Plane()), []);
   const [tiles, setTiles] = useState<TilesRenderer | null>(null);
+  const probeRef = useRef<THREE.PerspectiveCamera | null>(null);
 
   // Build and dispose the renderer inside one effect so a remount never reuses a
   // disposed renderer (which loses its Google auth plugin and requests tiles without the key).
   useEffect(() => {
     const t = new TilesRenderer();
     t.registerPlugin(new GoogleCloudAuthPlugin({ apiToken: apiKey, autoRefreshToken: true }));
-    t.registerPlugin(new ReorientationPlugin({ lat: lat * D2R, lon: lon * D2R, height: 0 }));
+    t.registerPlugin(new ReorientationPlugin({ lat: lat * D2R, lon: lon * D2R, height: 0, up: "+y" }));
     t.errorTarget = 12;
     t.fetchOptions = { ...t.fetchOptions, referrerPolicy: "strict-origin-when-cross-origin", mode: "cors" };
     gl.localClippingEnabled = true;
@@ -35,10 +36,21 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
       });
     };
     t.addEventListener("load-model", onLoad as never);
+    // Our site origin sits at ellipsoid height 0, which is usually below the real ground,
+    // so the main camera starts "underground" and never asks for nearby tiles. A probe camera
+    // high above the site loads the local terrain until we've found the ground under the model.
+    const probe = new THREE.PerspectiveCamera(60, 1, 1, 100000);
+    probe.position.set(0, 4000, 0); probe.up.set(0, 0, -1); probe.lookAt(0, 0, 0); probe.updateMatrixWorld(true);
+    t.setCamera(probe); t.setResolution(probe, 512, 512);
+    probeRef.current = probe;
     setTiles(t);
     return () => { t.removeEventListener("load-model", onLoad as never); t.dispose(); setTiles(null); };
   }, [apiKey, lat, lon, camera, gl, planes]);
 
+  // The reorientation plugin owns tiles.group's transform (Z north, X west, Y up), so we
+  // wrap it: turn 180° so north is -Z like our street map, and lift/lower the wrapper to ground it.
+  const wrap = useMemo(() => { const g = new THREE.Group(); g.rotation.y = Math.PI; return g; }, []);
+  useEffect(() => { if (!tiles) return; wrap.add(tiles.group); return () => { wrap.remove(tiles.group); }; }, [tiles, wrap]);
   const state = useMemo(() => ({ grounded: false, frame: 0, ray: new THREE.Raycaster() }), [tiles]);
   useFrame(() => {
     if (!tiles) return;
@@ -48,12 +60,18 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
     state.frame++;
     // Auto-ground: drop a ray straight down at the site origin until it hits the scan.
     if (!state.grounded && state.frame % 20 === 0) {
-      tiles.group.position.y = 0; tiles.group.updateMatrixWorld(true);
-      state.ray.set(new THREE.Vector3(0, 5000, 0), new THREE.Vector3(0, -1, 0));
-      state.ray.far = 20000;
+      wrap.updateMatrixWorld(true);
+      state.ray.set(new THREE.Vector3(0, 10000, 0), new THREE.Vector3(0, -1, 0));
+      state.ray.far = 30000;
       const hit = state.ray.intersectObject(tiles.group, true)[0];
-      if (hit && state.frame > 120) { tiles.group.position.y = -hit.point.y; state.grounded = true; }
-      else if (hit) tiles.group.position.y = -hit.point.y;
+      if (hit) {
+        wrap.position.y -= hit.point.y;
+        // Once the drop settles (detail has loaded), stop probing.
+        if (Math.abs(hit.point.y) < 0.5 && state.frame > 200) {
+          state.grounded = true;
+          if (probeRef.current) { tiles.deleteCamera(probeRef.current); probeRef.current = null; }
+        }
+      }
     }
     // Clip box: world-space bounds of our model, from below ground to well above the roofline.
     if (state.frame % 15 === 0) {
@@ -77,5 +95,5 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
     }
   });
 
-  return tiles ? h("primitive", { object: tiles.group }) : null;
+  return tiles ? h("primitive", { object: wrap }) : null;
 }
