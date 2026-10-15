@@ -129,7 +129,7 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
 
   return h(Fragment, null,
     h(CameraControls, { ref: controls, makeDefault: true, maxPolarAngle: props.view === "2d" ? 0.01 : Math.PI / 2.1, minDistance: 2, maxDistance: props.ground === "city3d" ? 3000 : 600 }),
-    h("group", { "rotation-y": THREE.MathUtils.degToRad(props.rotation), scale: props.scale, "position-y": props.elevation ?? 0 },
+    h("group", { "rotation-y": THREE.MathUtils.degToRad(props.rotation), scale: props.scale, "position-y": props.ground === "city3d" ? props.elevation ?? 0 : 0 },
       h("primitive", { object: root, onClick })),
     helper ? h("primitive", { object: helper }) : null);
 }
