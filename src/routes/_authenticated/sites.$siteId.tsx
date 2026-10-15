@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { siteQuery } from "@/lib/twin/data";
@@ -39,19 +39,27 @@ function Seg({ value, options, onChange }: { value: string; options: [string, st
   );
 }
 
+const viewPrefs: { ground: GroundMode; clip: boolean } = { ground: "map", clip: true };
+
 function SitePage() {
   const { siteId } = Route.useParams();
   const { data, isLoading, error } = useQuery(siteQuery(siteId));
   const [unit, setUnit] = useState<string | null>(null);
   const [device, setDevice] = useState<string | null>(null);
   const [view, setView] = useState<"2d" | "3d">("3d");
-  const [ground, setGround] = useState<GroundMode>("map");
-  const [clip, setClip] = useState(true);
+  // Kept outside component state so a refresh/remount after a placement change keeps the chosen map type.
+  const [ground, setGroundState] = useState<GroundMode>(() => viewPrefs.ground);
+  const setGround = (g: GroundMode) => { viewPrefs.ground = g; setGroundState(g); };
+  const [clip, setClipState] = useState(() => viewPrefs.clip);
+  const setClip = (c: boolean) => { viewPrefs.clip = c; setClipState(c); };
   const needsGoogle = ground === "satellite" || ground === "roadmap" || ground === "city3d";
   const google = useQuery({ queryKey: ["google-tiles"], queryFn: () => getGoogleTiles(), enabled: needsGoogle, staleTime: 1000 * 60 * 60 * 6, retry: false });
   const [building, setBuilding] = useState("all");
   const [floor, setFloor] = useState<number | null>(null);
 
+  // Signed model URLs change on every refetch; reuse the first one so the 3D view doesn't reload.
+  const glbUrlRef = useRef<{ path: string | null | undefined; url: string | null }>({ path: undefined, url: null });
+  if (data && glbUrlRef.current.path !== data.site.model_path) glbUrlRef.current = { path: data.site.model_path, url: data.glbUrl };
   const sampleBuildings = useMemo(() => data?.buildings ?? [], [data?.buildings]);
   const sampleUnits = useMemo(() => data?.units ?? [], [data?.units]);
   const focusedUnit = sampleUnits.find((u) => u.object_name === unit) ?? null;
@@ -74,7 +82,7 @@ function SitePage() {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="relative min-h-0 flex-[3]">
             <Suspense fallback={<div className="grid h-full place-items-center text-muted-foreground">Loading 3D view…</div>}>
-              <SiteViewer lat={site.lat} lon={site.lon} rotation={site.rotation} scale={site.scale} glbUrl={data.glbUrl} elevation={site.elevation ?? 0} google={google.data ?? null} clip={clip}
+              <SiteViewer lat={site.lat} lon={site.lon} rotation={site.rotation} scale={site.scale} glbUrl={glbUrlRef.current.url} elevation={site.elevation ?? 0} google={google.data ?? null} clip={clip}
                 buildings={sampleBuildings} units={sampleUnits} hiddenUnits={hiddenUnits} focusUnit={unit} focusDevice={device} view={view} ground={ground}
                 onPick={(u, d) => { setUnit(u); setDevice(d); }} />
             </Suspense>
