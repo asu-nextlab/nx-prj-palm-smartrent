@@ -115,9 +115,9 @@ const DEVICE_TYPES: [RegExp, string, string][] = [
   [/tv|television/i, "Television", "LED television"],
   [/thermo/i, "Thermostat", "Smart thermostat"],
   [/lock/i, "Smart lock", "Door lock"],
+  [/dish/i, "Dishwasher", "Dishwasher"], // before /wash/, which also matches "dishwasher"
   [/wash/i, "Washer", "Washing machine"],
   [/dry/i, "Dryer", "Clothes dryer"],
-  [/dish/i, "Dishwasher", "Dishwasher"],
   [/light|lamp/i, "Light", "Smart light"],
   [/sensor|leak/i, "Sensor", "Leak sensor"],
 ];

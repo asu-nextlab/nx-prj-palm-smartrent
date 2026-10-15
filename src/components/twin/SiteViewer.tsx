@@ -130,9 +130,6 @@ function Model({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
       const fb = boxOf(focused);
       for (const a of apts) if (a !== focused && boxOf(a).min.y > fb.min.y + 0.5) a.visible = false;
     }
-    root.updateMatrixWorld(true);
-    const sel = (props.focusDevice && focused?.getObjectByName(props.focusDevice)) || focused;
-    setHelper(sel ? new THREE.Box3Helper(boxOf(sel).expandByScalar(0.08), new THREE.Color(props.focusDevice ? "#ff8a3d" : "#32bdcd")) : null);
   }, [root, props.focusUnit, props.focusDevice, isSample, props.hiddenUnits]);
 
   // Report which DEV_ objects the model has, so the panel can offer them when adding a device.
@@ -171,6 +168,15 @@ function Model({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
       missing.forEach(([name, status], i) => apt.add(deviceMarker(apt, aptBox, name, status, i)));
     }
   }, [root, props.devices, isSample, props.focusUnit]);
+
+  // Selection outline. Runs after the effects above so sample interiors and web-added
+  // markers exist before the selected device is looked up.
+  useEffect(() => {
+    root.updateMatrixWorld(true);
+    const focused = props.focusUnit ? root.getObjectByName(props.focusUnit) ?? null : null;
+    const sel = (props.focusDevice && focused?.getObjectByName(props.focusDevice)) || focused;
+    setHelper(sel ? new THREE.Box3Helper(new THREE.Box3().setFromObject(sel).expandByScalar(0.08), new THREE.Color(props.focusDevice ? "#ff8a3d" : "#32bdcd")) : null);
+  }, [root, props.focusUnit, props.focusDevice, props.hiddenUnits, props.devices]);
 
   // camera
   useEffect(() => {

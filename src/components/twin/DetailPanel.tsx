@@ -105,7 +105,7 @@ function AddDeviceForm({ unit, devices, modelDevices, onAdded, onCancel }: {
       <p className="text-xs font-semibold">Add device</p>
       <label className="grid grid-cols-[6.5rem_1fr] items-center gap-2 text-xs text-muted-foreground">
         3D object
-        <select value={link} onChange={(e) => setLink(e.target.value)} className="h-8 rounded-md border bg-background px-2 text-sm text-foreground">
+        <select value={link} onChange={(e) => setLink(e.target.value)} className="h-8 w-full min-w-0 rounded-md border bg-background px-2 text-sm text-foreground">
           <option value={NEW_MARKER}>New marker</option>
           {unlinked.map((n) => <option key={n} value={n}>{n} (in model, no data)</option>)}
         </select>
@@ -113,7 +113,7 @@ function AddDeviceForm({ unit, devices, modelDevices, onAdded, onCancel }: {
       {!link && (
         <label className="grid grid-cols-[6.5rem_1fr] items-center gap-2 text-xs text-muted-foreground">
           Kind
-          <select value={kind} onChange={(e) => setKind(e.target.value)} className="h-8 rounded-md border bg-background px-2 text-sm text-foreground">
+          <select value={kind} onChange={(e) => setKind(e.target.value)} className="h-8 w-full min-w-0 rounded-md border bg-background px-2 text-sm text-foreground">
             {DEVICE_KINDS.map((k) => <option key={k} value={k}>{guessDevice(`DEV_${k}`).type}</option>)}
           </select>
         </label>
