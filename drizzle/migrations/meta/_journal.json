@@ -36,6 +36,13 @@
       "when": 1792021761490,
       "tag": "0004_site_elevation",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792104546098,
+      "tag": "0005_device_status_since",
+      "breakpoints": true
     }
   ]
 }

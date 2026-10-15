@@ -74,6 +74,7 @@ export type Database = {
           notes: string | null
           object_name: string
           status: string
+          status_since: string
           type: string | null
           unit_id: string
         }
@@ -86,6 +87,7 @@ export type Database = {
           notes?: string | null
           object_name: string
           status?: string
+          status_since?: string
           type?: string | null
           unit_id: string
         }
@@ -98,6 +100,7 @@ export type Database = {
           notes?: string | null
           object_name?: string
           status?: string
+          status_since?: string
           type?: string | null
           unit_id?: string
         }
