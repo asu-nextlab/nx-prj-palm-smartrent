@@ -20,6 +20,8 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
     t.registerPlugin(new GoogleCloudAuthPlugin({ apiToken: apiKey, autoRefreshToken: true }));
     t.registerPlugin(new ReorientationPlugin({ lat: lat * D2R, lon: lon * D2R, height: 0 }));
     t.errorTarget = 12;
+    // The key is website-restricted: make sure Google sees which site is asking.
+    t.fetchOptions = { ...t.fetchOptions, referrerPolicy: "strict-origin-when-cross-origin", mode: "cors" };
     return t;
   }, [apiKey, lat, lon]);
 
