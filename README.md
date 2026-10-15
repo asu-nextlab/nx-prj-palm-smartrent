@@ -59,6 +59,29 @@ npm i
 npm run dev
 ```
 
+The app runs at http://localhost:8080.
+
+### Local development with a dev database
+
+Signing in with ASU Google only works on the Lovable-hosted site, so a local copy can't log in to the live database. Instead, point your local copy at a separate dev Supabase project with its own email login. This also keeps test edits away from the live data.
+
+**One-time setup per team (skip if someone already made the dev project):**
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. In **SQL Editor**, run this line, then each file in `drizzle/migrations/` in order (`0000` → `0003`). This creates the tables, the ASU-only access rules and three sample sites.
+   ```sql
+   insert into storage.buckets (id, name, public) values ('models', 'models', false) on conflict (id) do nothing;
+   ```
+3. In **Authentication → Sign In / Providers**, keep **Email** enabled and turn **Confirm email** off, so dev accounts work without confirmation emails.
+
+**Per developer:**
+
+1. Copy `.env.local.example` to `.env.local` and fill in the dev project's URL, publishable key and project ID (**Project Settings → API Keys**). `.env.local` is git-ignored and overrides `.env`; don't edit `.env`, which belongs to Lovable.
+2. Run `npm run dev` (restart it after changing `.env.local`).
+3. On http://localhost:8080/auth, use the **Local dev login** box: enter your `@asu.edu` email and a new password (not your ASU password), then **Create account**. Next time use **Sign in**.
+
+The dev login only appears when running locally with `VITE_DEV_LOGIN=true`; it never shows on the live site. Data in the dev project is separate: sites uploaded there don't appear on the live site and vice versa. Free projects pause after about a week without use; resume them from the Supabase dashboard.
+
 ## Credits
 
 Built by ASU NEXT Lab, based on the SmartRent Apartment Explorer concept. Created with [Lovable](https://lovable.dev).
