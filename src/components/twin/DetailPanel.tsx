@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { addDevice, deleteDevice, devicesQuery, nextDeviceObjectName, type Device, type Unit } from "@/lib/twin/data";
@@ -12,8 +12,37 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-function DeviceEditor({ device, onDeleted }: { device: Device; onDeleted: () => void }) {
+/** Calls onOutside when the user clicks outside `ref`. Drags (e.g. orbiting the 3D view)
+ *  and clicks in dialogs or toasts, which render outside the panel, don't count. */
+function useClickOutside(ref: RefObject<HTMLElement | null>, onOutside: () => void) {
+  const latest = useRef(onOutside);
+  latest.current = onOutside;
+  useEffect(() => {
+    let down: { x: number; y: number; outside: boolean } | null = null;
+    const isOutside = (t: EventTarget | null) => {
+      if (!(t instanceof Element) || !t.isConnected) return false;
+      if (ref.current?.contains(t)) return false;
+      if (document.querySelector('[role="alertdialog"]')) return false;
+      return !t.closest("[data-sonner-toaster]");
+    };
+    const onDown = (e: PointerEvent) => { down = { x: e.clientX, y: e.clientY, outside: isOutside(e.target) }; };
+    const onUp = (e: PointerEvent) => {
+      if (down?.outside && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5) latest.current();
+      down = null;
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("pointerup", onUp, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("pointerup", onUp, true);
+    };
+  }, [ref]);
+}
+
+function DeviceEditor({ device, onDeleted, onClose }: { device: Device; onDeleted: () => void; onClose: () => void }) {
   const qc = useQueryClient();
+  const box = useRef<HTMLDivElement>(null);
+  useClickOutside(box, onClose);
   const [d, setD] = useState(device);
   useEffect(() => setD(device), [device]);
   const fields: [keyof Device, string, boolean?][] = [["name", "Name"], ["type", "Type"], ["model", "Model"], ["install_year", "Installed", true], ["energy_kwh", "Energy kWh/yr", true], ["notes", "Notes"]];
@@ -43,7 +72,7 @@ function DeviceEditor({ device, onDeleted }: { device: Device; onDeleted: () => 
     ]);
   };
   return (
-    <div className="mt-3 space-y-2 rounded-lg border border-warn/50 bg-card p-3">
+    <div ref={box} className="mt-3 space-y-2 rounded-lg border border-warn/50 bg-card p-3">
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs text-muted-foreground">{d.object_name}</span>
         <select value={d.status} onChange={(e) => setD({ ...d, status: e.target.value })} className="rounded border bg-background px-1 text-xs">
@@ -91,6 +120,8 @@ function AddDeviceForm({ unit, devices, modelDevices, onAdded, onCancel }: {
   unit: Unit; devices: Device[]; modelDevices: string[]; onAdded: (objectName: string) => void; onCancel: () => void;
 }) {
   const qc = useQueryClient();
+  const box = useRef<HTMLDivElement>(null);
+  useClickOutside(box, onCancel);
   const unlinked = modelDevices.filter((n) => !devices.some((d) => d.object_name === n));
   const [link, setLink] = useState(NEW_MARKER);
   const [kind, setKind] = useState<string>(DEVICE_KINDS[0]);
@@ -122,7 +153,7 @@ function AddDeviceForm({ unit, devices, modelDevices, onAdded, onCancel }: {
   };
 
   return (
-    <div className="mt-3 space-y-2 rounded-lg border bg-card p-3">
+    <div ref={box} className="mt-3 space-y-2 rounded-lg border bg-card p-3">
       <p className="text-xs font-semibold">Add device</p>
       <label className="grid grid-cols-[6.5rem_1fr] items-center gap-2 text-xs text-muted-foreground">
         3D object
@@ -201,7 +232,7 @@ export function DetailPanel({ unit, device, modelDevices, onSelectDevice, onClos
         <AddDeviceForm unit={unit} devices={devices} modelDevices={modelDevices}
           onAdded={(obj) => { setAdding(false); onSelectDevice(obj); }} onCancel={() => setAdding(false)} />
       )}
-      {current && !adding && <DeviceEditor device={current} onDeleted={() => onSelectDevice(null)} />}
+      {current && !adding && <DeviceEditor device={current} onDeleted={() => onSelectDevice(null)} onClose={() => onSelectDevice(null)} />}
       <p className="mt-auto pt-6 text-xs text-muted-foreground">Click devices in the 3D view or in this list. Edit apartment details in the table below.</p>
     </div>
   );
