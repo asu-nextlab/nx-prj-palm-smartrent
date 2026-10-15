@@ -122,9 +122,10 @@ export function unitSummaries(devices: SiteDevice[], issues: Issue[]): Map<strin
   return out;
 }
 
-export const LEVEL_COLORS: Record<Level, string> = { urgent: "#e5484d", high: "#f76b15", medium: "#f5c518", low: "#5b9bd5" };
+// Issues run green → red; apartments with no issues stay neutral so problems stand out.
+export const LEVEL_COLORS: Record<Level, string> = { urgent: "#e5484d", high: "#f76b15", medium: "#f5c518", low: "#46a758" };
 export const LEVEL_LABELS: Record<Level, string> = { urgent: "Urgent", high: "High", medium: "Medium", low: "Low" };
-const OK_COLOR = "#46a758";
+const OK_COLOR = "#d4d8dc";
 const NO_DATA_COLOR = "#c3c8cc";
 
 export type HeatMode = "off" | "priority" | "energy" | "age";
