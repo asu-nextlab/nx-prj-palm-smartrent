@@ -1,5 +1,5 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { createElement as h, useEffect, useMemo } from "react";
+import { createElement as h, useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { TilesRenderer } from "3d-tiles-renderer";
 import { GoogleCloudAuthPlugin, ReorientationPlugin } from "3d-tiles-renderer/plugins";
@@ -15,32 +15,33 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
 }) {
   const { camera, gl } = useThree();
   const planes = useMemo(() => Array.from({ length: 6 }, () => new THREE.Plane()), []);
-  const tiles = useMemo(() => {
+  const [tiles, setTiles] = useState<TilesRenderer | null>(null);
+
+  // Build and dispose the renderer inside one effect so a remount never reuses a
+  // disposed renderer (which loses its Google auth plugin and requests tiles without the key).
+  useEffect(() => {
     const t = new TilesRenderer();
     t.registerPlugin(new GoogleCloudAuthPlugin({ apiToken: apiKey, autoRefreshToken: true }));
     t.registerPlugin(new ReorientationPlugin({ lat: lat * D2R, lon: lon * D2R, height: 0 }));
     t.errorTarget = 12;
-    // The key is website-restricted: make sure Google sees which site is asking.
     t.fetchOptions = { ...t.fetchOptions, referrerPolicy: "strict-origin-when-cross-origin", mode: "cors" };
-    return t;
-  }, [apiKey, lat, lon]);
-
-  useEffect(() => {
     gl.localClippingEnabled = true;
-    tiles.setCamera(camera);
-    tiles.setResolutionFromRenderer(camera, gl);
+    t.setCamera(camera);
+    t.setResolutionFromRenderer(camera, gl);
     const onLoad = ({ scene }: { scene: THREE.Object3D }) => {
       scene.traverse((o) => {
         const m = (o as THREE.Mesh).material as THREE.Material | undefined;
         if (m) { m.clippingPlanes = planes; m.clipIntersection = true; }
       });
     };
-    tiles.addEventListener("load-model", onLoad as never);
-    return () => { tiles.removeEventListener("load-model", onLoad as never); tiles.dispose(); };
-  }, [tiles, camera, gl, planes]);
+    t.addEventListener("load-model", onLoad as never);
+    setTiles(t);
+    return () => { t.removeEventListener("load-model", onLoad as never); t.dispose(); setTiles(null); };
+  }, [apiKey, lat, lon, camera, gl, planes]);
 
   const state = useMemo(() => ({ grounded: false, frame: 0, ray: new THREE.Raycaster() }), [tiles]);
   useFrame(() => {
+    if (!tiles) return;
     camera.updateMatrixWorld();
     tiles.setResolutionFromRenderer(camera, gl);
     tiles.update();
@@ -76,5 +77,5 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
     }
   });
 
-  return h("primitive", { object: tiles.group });
+  return tiles ? h("primitive", { object: tiles.group }) : null;
 }
