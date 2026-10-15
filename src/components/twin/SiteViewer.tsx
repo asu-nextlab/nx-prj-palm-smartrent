@@ -42,11 +42,11 @@ function Ground({ lat, lon, mode, google }: { lat: number; lon: number; mode: Gr
   }, [lat, lon, mode, google]);
   useEffect(() => () => g?.tex.dispose(), [g]);
   if (!g) {
-    return h("mesh", { "rotation-x": -Math.PI / 2, receiveShadow: true },
+    return h("mesh", { key: "plane", "rotation-x": -Math.PI / 2, receiveShadow: true },
       h("circleGeometry", { args: [220, 64] }),
       h("meshStandardMaterial", { color: "#dfe6dc", roughness: 1 }));
   }
-  return h("mesh", { "rotation-x": -Math.PI / 2, position: [g.offset[0], -0.02, g.offset[1]], receiveShadow: true },
+  return h("mesh", { key: `tiles-${mode}`, "rotation-x": -Math.PI / 2, position: [g.offset[0], -0.02, g.offset[1]], receiveShadow: true },
     h("planeGeometry", { args: [g.size, g.size] }),
     h("meshStandardMaterial", { map: g.tex, roughness: 1 }));
 }
