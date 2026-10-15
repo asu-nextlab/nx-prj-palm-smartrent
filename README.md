@@ -83,11 +83,12 @@ Signing in with ASU Google only works on the Lovable-hosted site, so a local cop
 **One-time setup per team (skip if someone already made the dev project):**
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. In **SQL Editor**, run this line, then each file in `drizzle/migrations/` in order (`0000` → `0004`). This creates the tables, the ASU-only access rules and three sample sites.
+2. In **SQL Editor**, run this line, then each file in `drizzle/migrations/` in order (`0000` → `0005`). This creates the tables, the ASU-only access rules and three sample sites.
    ```sql
    insert into storage.buckets (id, name, public) values ('models', 'models', false) on conflict (id) do nothing;
    ```
 3. In **Authentication → Sign In / Providers**, keep **Email** enabled and turn **Confirm email** off, so dev accounts work without confirmation emails.
+4. Optional: run `scripts/dev-demo-issues.sql` to break some sample devices with backdated dates, so the maintenance list, fix lists and priority heatmap have data to show. **Dev database only.**
 
 **Per developer:**
 

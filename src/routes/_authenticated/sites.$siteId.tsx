@@ -9,6 +9,8 @@ import type { GroundMode } from "@/components/twin/SiteViewer";
 import { AppHeader } from "@/components/twin/AppHeader";
 import { UnitTable } from "@/components/twin/UnitTable";
 import { DetailPanel } from "@/components/twin/DetailPanel";
+import { MaintenanceList } from "@/components/twin/MaintenanceList";
+import { HEAT_LEGENDS, heatColors, siteIssues, unitSummaries, type HeatMode } from "@/lib/twin/issues";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,6 +60,8 @@ function SitePage() {
   const google = useQuery({ queryKey: ["google-tiles"], queryFn: () => getGoogleTiles(), enabled: needsGoogle, staleTime: 1000 * 60 * 60 * 6, retry: false });
   const [building, setBuilding] = useState("all");
   const [floor, setFloor] = useState<number | null>(null);
+  const [tab, setTab] = useState<"apartments" | "maintenance">("apartments");
+  const [heatMode, setHeatMode] = useState<HeatMode>("off");
 
   // Signed model URLs change on every refetch; reuse the first one so the 3D view doesn't reload.
   const glbUrlRef = useRef<{ path: string | null | undefined; url: string | null }>({ path: undefined, url: null });
@@ -73,6 +77,11 @@ function SitePage() {
   const currentFloor = floor ?? focusedUnit?.floor ?? null;
   const hiddenUnits = useMemo(() => (floor == null ? [] : floorUnits.filter((u) => u.floor > floor).map((u) => u.object_name)), [floorUnits, floor]);
   const tableUnits = useMemo(() => (building === "all" ? sampleUnits : sampleUnits.filter((u) => u.building_id === building)), [sampleUnits, building]);
+  const issues = useMemo(() => siteIssues(siteDevices ?? []), [siteDevices]);
+  const summaries = useMemo(() => unitSummaries(siteDevices ?? [], issues), [siteDevices, issues]);
+  const heat = useMemo(() => heatColors(heatMode, sampleUnits.map((u) => u.object_name), summaries), [heatMode, sampleUnits, summaries]);
+  const tableUnitNames = useMemo(() => new Set(tableUnits.map((u) => u.object_name)), [tableUnits]);
+  const tableIssues = useMemo(() => issues.filter((i) => tableUnitNames.has(i.device.unit_object_name)), [issues, tableUnitNames]);
 
   if (isLoading) return <div className="min-h-screen"><AppHeader /><p className="p-10 text-muted-foreground">Loading site…</p></div>;
   if (error || !data) return <div className="min-h-screen"><AppHeader /><p className="p-10 text-destructive">Couldn't load this site.</p></div>;
@@ -88,7 +97,7 @@ function SitePage() {
             <Suspense fallback={<div className="grid h-full place-items-center text-muted-foreground">Loading 3D view…</div>}>
               <SiteViewer lat={site.lat} lon={site.lon} rotation={site.rotation} scale={site.scale} glbUrl={glbUrlRef.current.url} elevation={site.elevation ?? 0} google={google.data ?? null} clip={clip}
                 buildings={sampleBuildings} units={sampleUnits} hiddenUnits={hiddenUnits} cutaway={floor != null} focusUnit={unit} focusDevice={device} view={view} ground={ground}
-                devices={siteDevices} onModelDevices={setModelDevices}
+                devices={siteDevices} onModelDevices={setModelDevices} heat={heat}
                 onPick={(u, d) => { setUnit(u); setDevice(d); }} />
             </Suspense>
             <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-wrap items-start gap-2 [&>*]:pointer-events-auto">
@@ -111,28 +120,46 @@ function SitePage() {
                 <button onClick={() => setFloor(null)} aria-pressed={floor == null} className={cn("h-7 w-10 rounded-md text-[0.65rem] font-medium", floor == null ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted")}>All</button>
               </nav>
             )}
+            <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1">
+              {heatMode !== "off" && (
+                <div className="flex items-center gap-2 rounded-md bg-card/95 px-2 py-1 text-[0.65rem] text-muted-foreground shadow-sm ring-1 ring-border">
+                  <span className="font-medium text-foreground">{HEAT_LEGENDS[heatMode].label}</span>
+                  {HEAT_LEGENDS[heatMode].stops.map(([color, label], i) => (
+                    <span key={i} className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />{label}</span>
+                  ))}
+                </div>
+              )}
+              <Seg value={heatMode} onChange={(v) => setHeatMode(v as HeatMode)} options={[["off", "Heatmap off"], ["priority", "Priority"], ["energy", "Energy"], ["age", "Device age"]]} />
+            </div>
             {needsGoogle && <span className="absolute bottom-2 right-2 rounded bg-card/90 px-2 py-0.5 text-[0.65rem] font-medium text-muted-foreground">Google · Map data ©{new Date().getFullYear()} Google</span>}
             {ground === "map" && <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" className="absolute bottom-2 right-2 rounded bg-card/90 px-2 py-0.5 text-[0.65rem] text-muted-foreground">© OpenStreetMap contributors</a>}
           </div>
           <div className="flex min-h-0 flex-[2] flex-col border-t bg-card">
             <div className="flex items-center gap-3 border-b px-4 py-2">
-              <h2 className="text-sm font-semibold">Apartments <span className="font-normal text-muted-foreground">({tableUnits.length})</span></h2>
+              <Seg value={tab} onChange={(v) => setTab(v as "apartments" | "maintenance")}
+                options={[["apartments", `Apartments (${tableUnits.length})`], ["maintenance", `Maintenance (${tableIssues.length})`]]} />
               {data.buildings.length > 0 && (
                 <select value={building} onChange={(e) => { setBuilding(e.target.value); setFloor(null); }} className="rounded-md border bg-background px-2 py-1 text-xs">
                   <option value="all">All buildings</option>
                   {data.buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               )}
-              <span className="ml-auto text-xs text-muted-foreground">Click a cell to edit · saves automatically</span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {tab === "apartments" ? "Click a cell to edit · saves automatically" : "Most urgent first · click to open the device"}
+              </span>
             </div>
             <div className="min-h-0 flex-1">
-              <UnitTable units={tableUnits} buildings={data.buildings} siteId={siteId} selected={unit} onSelect={(o) => { setUnit(o); setDevice(null); }} />
+              {tab === "apartments"
+                ? <UnitTable units={tableUnits} buildings={data.buildings} siteId={siteId} selected={unit} onSelect={(o) => { setUnit(o); setDevice(null); }} />
+                : <MaintenanceList issues={tableIssues} units={data.units} buildings={data.buildings} selectedUnit={unit} selectedDevice={device}
+                    onSelect={(u, d) => { setUnit(u); setDevice(d); setFloor(null); }} />}
             </div>
           </div>
         </div>
         {selectedUnit && (
           <aside className="w-80 shrink-0 border-l bg-background">
             <DetailPanel unit={selectedUnit} device={device} modelDevices={modelDevices ? modelDevices[selectedUnit.object_name] ?? [] : null}
+              issues={summaries.get(selectedUnit.object_name)?.issues ?? []}
               onSelectDevice={setDevice} onClose={() => { setUnit(null); setDevice(null); }} />
           </aside>
         )}

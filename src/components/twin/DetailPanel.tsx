@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { addDevice, deleteDevice, devicesQuery, nextDeviceObjectName, type Device, type Unit } from "@/lib/twin/data";
 import { DEVICE_KINDS, guessDevice, layoutOf } from "@/lib/twin/templates";
+import type { Issue } from "@/lib/twin/issues";
+import { LevelBadge } from "@/components/twin/MaintenanceList";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -75,6 +77,11 @@ function DeviceEditor({ device, onDeleted, onClose }: { device: Device; onDelete
     <div ref={box} className="mt-3 space-y-2 rounded-lg border border-warn/50 bg-card p-3">
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs text-muted-foreground">{d.object_name}</span>
+        {device.status !== "online" && device.status_since && (
+          <span className="text-[0.65rem] text-muted-foreground" title={new Date(device.status_since).toLocaleString()}>
+            since {new Date(device.status_since).toLocaleDateString()}
+          </span>
+        )}
         <select value={d.status} onChange={(e) => setD({ ...d, status: e.target.value })} className="rounded border bg-background px-1 text-xs">
           {["online", "offline", "needs service"].map((s) => <option key={s}>{s}</option>)}
         </select>
@@ -186,8 +193,10 @@ function AddDeviceForm({ unit, devices, modelDevices, onAdded, onCancel }: {
   );
 }
 
-export function DetailPanel({ unit, device, modelDevices, onSelectDevice, onClose }: {
+export function DetailPanel({ unit, device, modelDevices, issues, onSelectDevice, onClose }: {
   unit: Unit; device: string | null;
+  /** This apartment's open issues, most urgent first. */
+  issues: Issue[];
   /** DEV_ object names in the 3D model for this apartment; null while the model is loading. */
   modelDevices: string[] | null;
   onSelectDevice: (obj: string | null) => void; onClose: () => void;
@@ -211,6 +220,25 @@ export function DetailPanel({ unit, device, modelDevices, onSelectDevice, onClos
           <div key={k as string} className="rounded-lg bg-muted py-2"><dt className="text-[0.65rem] uppercase text-muted-foreground">{k}</dt><dd className="font-display text-lg">{v ?? "—"}</dd></div>
         ))}
       </dl>
+      <h3 className="mt-6 text-sm font-semibold">Fix list <span className="font-normal text-muted-foreground">({issues.length})</span></h3>
+      {issues.length === 0
+        ? <p className="mt-1 text-sm text-muted-foreground">No open issues.</p>
+        : (
+          <ul className="mt-2 space-y-1">
+            {issues.map((i) => (
+              <li key={`${i.device.id}-${i.kind}`}>
+                <button onClick={() => onSelectDevice(i.device.object_name)}
+                  className={cn("w-full rounded-md px-3 py-1.5 text-left text-sm hover:bg-accent", i.device.object_name === device && "bg-accent")}>
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="truncate">{i.device.name} · {i.label}</span>
+                    <LevelBadge level={i.level} />
+                  </span>
+                  <span className="block text-xs text-muted-foreground">{i.detail}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       <div className="mt-6 flex items-center justify-between">
         <h3 className="text-sm font-semibold">Devices <span className="font-normal text-muted-foreground">({devices.length})</span></h3>
         {!adding && <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!modelDevices} onClick={() => { setAdding(true); onSelectDevice(null); }}>+ Add device</Button>}

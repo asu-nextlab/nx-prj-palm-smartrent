@@ -24,6 +24,8 @@ export interface ViewerProps {
   onPick: (unit: string | null, device: string | null) => void;
   /** Device rows for the whole site. Meshes without a row are hidden; rows without a mesh get a marker. */
   devices?: { object_name: string; unit_object_name: string; status: string }[] | undefined;
+  /** Heatmap colour per apartment object name; null/undefined shows the model's own colours. */
+  heat?: Record<string, string> | null | undefined;
   /** Reports the DEV_ objects each apartment has in the model (apartment object name → device object names). */
   onModelDevices?: ((byUnit: Record<string, string[]>) => void) | undefined;
 }
@@ -45,6 +47,27 @@ function setDeviceHidden(o: THREE.Object3D, hidden: boolean) {
     if (hidden && !savedRaycast.has(m)) { savedRaycast.set(m, m.raycast); m.raycast = () => {}; }
     if (!hidden && savedRaycast.has(m)) { m.raycast = savedRaycast.get(m)!; savedRaycast.delete(m); }
   });
+}
+
+const heatOriginals = new WeakMap<THREE.Mesh, THREE.Material | THREE.Material[]>();
+const heatMaterials = new Map<string, THREE.MeshStandardMaterial>();
+const heatMaterial = (color: string) => {
+  let m = heatMaterials.get(color);
+  if (!m) heatMaterials.set(color, (m = new THREE.MeshStandardMaterial({ color, roughness: 0.75 })));
+  return m;
+};
+/** Meshes the heatmap recolours: the apartment's shell on sample sites, and everything except
+ *  devices and web-added markers on uploaded models. */
+function heatTargets(apt: THREE.Object3D, isSample: boolean): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  apt.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || m.userData["webMarker"]) return;
+    if (isSample) { if (/^SHELL/i.test(m.name)) out.push(m); return; }
+    for (let p: THREE.Object3D | null = m; p && p !== apt; p = p.parent) if (isDevice(p)) return;
+    out.push(m);
+  });
+  return out;
 }
 
 const markerGeometry = new THREE.SphereGeometry(0.16, 20, 14);
@@ -181,6 +204,23 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
       missing.forEach(([name, status], i) => apt.add(deviceMarker(apt, aptBox, name, status, i)));
     }
   }, [root, props.devices, isSample, props.focusUnit]);
+
+  // Heatmap: swap apartment materials for a flat colour, restoring the originals when off.
+  useEffect(() => {
+    root.traverse((o) => {
+      if (!isApartment(o)) return;
+      const color = props.heat?.[o.name];
+      for (const m of heatTargets(o, isSample)) {
+        if (color) {
+          if (!heatOriginals.has(m)) heatOriginals.set(m, m.material);
+          m.material = heatMaterial(color);
+        } else if (heatOriginals.has(m)) {
+          m.material = heatOriginals.get(m)!;
+          heatOriginals.delete(m);
+        }
+      }
+    });
+  }, [root, props.heat, isSample, props.focusUnit]);
 
   // Selection outline. Runs after the effects above so sample interiors and web-added
   // markers exist before the selected device is looked up.
