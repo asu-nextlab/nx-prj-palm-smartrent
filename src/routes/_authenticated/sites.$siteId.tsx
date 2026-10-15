@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { siteQuery } from "@/lib/twin/data";
@@ -57,6 +57,9 @@ function SitePage() {
   const [building, setBuilding] = useState("all");
   const [floor, setFloor] = useState<number | null>(null);
 
+  // Signed model URLs change on every refetch; reuse the first one so the 3D view doesn't reload.
+  const glbUrlRef = useRef<{ path: string | null | undefined; url: string | null }>({ path: undefined, url: null });
+  if (data && glbUrlRef.current.path !== data.site.model_path) glbUrlRef.current = { path: data.site.model_path, url: data.glbUrl };
   const sampleBuildings = useMemo(() => data?.buildings ?? [], [data?.buildings]);
   const sampleUnits = useMemo(() => data?.units ?? [], [data?.units]);
   const focusedUnit = sampleUnits.find((u) => u.object_name === unit) ?? null;
@@ -79,7 +82,7 @@ function SitePage() {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="relative min-h-0 flex-[3]">
             <Suspense fallback={<div className="grid h-full place-items-center text-muted-foreground">Loading 3D view…</div>}>
-              <SiteViewer lat={site.lat} lon={site.lon} rotation={site.rotation} scale={site.scale} glbUrl={data.glbUrl} elevation={site.elevation ?? 0} google={google.data ?? null} clip={clip}
+              <SiteViewer lat={site.lat} lon={site.lon} rotation={site.rotation} scale={site.scale} glbUrl={glbUrlRef.current.url} elevation={site.elevation ?? 0} google={google.data ?? null} clip={clip}
                 buildings={sampleBuildings} units={sampleUnits} hiddenUnits={hiddenUnits} focusUnit={unit} focusDevice={device} view={view} ground={ground}
                 onPick={(u, d) => { setUnit(u); setDevice(d); }} />
             </Suspense>
