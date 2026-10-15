@@ -52,6 +52,29 @@ Uploaded GLBs are the source of geometry and structure; edits in the web app are
 
 Requires **Node.js v20+** (with npm) or **Bun**.
 
+### Team quick start (`working-branch`)
+
+`working-branch` is the team's shared branch for local development. It runs against a **shared dev database** with its own email login, so you can sign in on `localhost` and add, edit or delete anything without touching the live site.
+
+```sh
+git clone https://github.com/asu-nextlab/nx-prj-palm-smartrent.git
+cd nx-prj-palm-smartrent
+git checkout working-branch
+npm install
+cp .env.local.example .env.local
+```
+
+1. Open `.env.local` and paste in the **dev database values from the team's Slack** (project URL, publishable key, project ID). They aren't in the repo because the repo is public.
+2. Run `npm run dev` and open http://localhost:8080/auth.
+3. In the **Local dev login** box, enter your `@asu.edu` email and a **new password just for the dev database** (not your ASU password), then click **Create account**. Next time, use **Sign in**.
+
+Good to know:
+
+- Everyone on the team shares the dev database's data, so other people's test edits show up for you too. The live site's data is separate and never affected.
+- To see broken devices in the Maintenance tab and heatmap, someone with dashboard access runs `scripts/dev-demo-issues.sql` once in the dev project's SQL Editor. Ask the dev project owner for Supabase access if you need to run SQL.
+- Google satellite, Google map and 3D city need a server key that only exists on the Lovable-hosted site, so those map modes don't load locally.
+- Don't commit `.env.local` (it's git-ignored) and don't edit `.env`, which belongs to Lovable.
+
 ### 1. Clone and install
 
 ```sh
@@ -80,7 +103,9 @@ Sign-in uses Google and is restricted to `@asu.edu` accounts. Google sign-in onl
 
 Signing in with ASU Google only works on the Lovable-hosted site, so a local copy can't log in to the live database. Instead, point your local copy at a separate dev Supabase project with its own email login. This also keeps test edits away from the live data.
 
-**One-time setup per team (skip if someone already made the dev project):**
+The team already has a shared dev database (see the quick start above). These steps are for creating a new one, e.g. if it's lost or you want your own sandbox.
+
+**Creating a dev database:**
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In **SQL Editor**, run this line, then each file in `drizzle/migrations/` in order (`0000` → `0005`). This creates the tables, the ASU-only access rules and three sample sites.
@@ -90,7 +115,7 @@ Signing in with ASU Google only works on the Lovable-hosted site, so a local cop
 3. In **Authentication → Sign In / Providers**, keep **Email** enabled and turn **Confirm email** off, so dev accounts work without confirmation emails.
 4. Optional: run `scripts/dev-demo-issues.sql` to break some sample devices with backdated dates, so the maintenance list, fix lists and priority heatmap have data to show. **Dev database only.**
 
-**Per developer:**
+**Connecting your local copy:**
 
 1. Copy `.env.local.example` to `.env.local` and fill in the dev project's URL, publishable key and project ID (**Project Settings → API Keys**). `.env.local` is git-ignored and overrides `.env`; don't edit `.env`, which belongs to Lovable.
 2. Run `npm run dev` (restart it after changing `.env.local`).
