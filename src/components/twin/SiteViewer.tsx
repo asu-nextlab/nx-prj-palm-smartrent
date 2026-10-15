@@ -1,4 +1,4 @@
-import { Canvas, type ThreeEvent } from "@react-three/fiber";
+import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { CameraControls, Environment, Lightformer, useGLTF } from "@react-three/drei";
 import { createElement as h, Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -139,19 +139,48 @@ function SampleRoot({ props, target }: { props: ViewerProps; target: React.Mutab
   return h(Model, { root, props, target });
 }
 
+// Rotates the DOM compass so its N always points to world north (-Z) on screen.
+function CompassTracker({ el }: { el: React.RefObject<HTMLDivElement | null> }) {
+  const dir = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera }) => {
+    if (!el.current) return;
+    camera.getWorldDirection(dir);
+    const flat = Math.hypot(dir.x, dir.z);
+    const deg = flat < 1e-4 ? 0 : -Math.atan2(dir.x, -dir.z) * 180 / Math.PI;
+    el.current.style.transform = `rotate(${deg}deg)`;
+  });
+  return null;
+}
+
 export default function SiteViewer(props: ViewerProps) {
   const target = useRef<THREE.Object3D | null>(null);
+  const compass = useRef<HTMLDivElement | null>(null);
   const city = props.ground === "city3d" && props.google;
   return (
-    <Canvas shadows dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.1, far: 3000 }} onPointerMissed={() => props.onPick(null, null)}>
-      {h(SceneSetup, { far: !!city })}
-      {city
-        ? h(City3D, { key: `${props.lat},${props.lon}`, lat: props.lat, lon: props.lon, apiKey: props.google!.key, target, clip: props.clip ?? true })
-        : h(Ground, { lat: props.lat, lon: props.lon, mode: props.ground, google: props.google ?? null })}
-      {h(Suspense, { fallback: null },
-        props.glbUrl
-          ? h(GlbRoot, { url: props.glbUrl, children: (root: THREE.Object3D) => h(Model, { root, props, target }) })
-          : h(SampleRoot, { props, target }))}
-    </Canvas>
+    <div className="relative h-full w-full">
+      <Canvas shadows dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.1, far: 3000 }} onPointerMissed={() => props.onPick(null, null)}>
+        {h(SceneSetup, { far: !!city })}
+        {h(CompassTracker, { el: compass })}
+        {city
+          ? h(City3D, { key: `${props.lat},${props.lon}`, lat: props.lat, lon: props.lon, apiKey: props.google!.key, target, clip: props.clip ?? true })
+          : h(Ground, { lat: props.lat, lon: props.lon, mode: props.ground, google: props.google ?? null })}
+        {h(Suspense, { fallback: null },
+          props.glbUrl
+            ? h(GlbRoot, { url: props.glbUrl, children: (root: THREE.Object3D) => h(Model, { root, props, target }) })
+            : h(SampleRoot, { props, target }))}
+      </Canvas>
+      <div className="pointer-events-none absolute right-3 top-3 h-14 w-14 rounded-full border border-border bg-card/90 shadow-md" aria-label="Compass">
+        <div ref={compass} className="relative h-full w-full">
+          <svg viewBox="0 0 56 56" className="absolute inset-0 h-full w-full">
+            <polygon points="28,9 33,28 23,28" className="fill-destructive" />
+            <polygon points="28,47 33,28 23,28" className="fill-muted-foreground" />
+          </svg>
+          <span className="absolute left-1/2 top-0 -translate-x-1/2 text-[10px] font-bold text-destructive">N</span>
+          <span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground">S</span>
+          <span className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[9px] text-muted-foreground">E</span>
+          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 text-[9px] text-muted-foreground">W</span>
+        </div>
+      </div>
+    </div>
   );
 }
