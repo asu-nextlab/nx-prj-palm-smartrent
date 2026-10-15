@@ -13,6 +13,8 @@ export interface ViewerProps {
   buildings: SampleBuilding[]; units: SampleUnit[];
   focusUnit: string | null; focusDevice: string | null;
   hiddenUnits?: string[];
+  /** Hide roofs (a floor is picked), even when no apartments are hidden, e.g. on the top floor. */
+  cutaway?: boolean | undefined;
   view: "2d" | "3d"; ground: "map" | "plane";
   onPick: (unit: string | null, device: string | null) => void;
   /** Device rows for the whole site. Meshes without a row are hidden; rows without a mesh get a marker. */
@@ -72,12 +74,14 @@ function Ground({ lat, lon, mode }: { lat: number; lon: number; mode: "map" | "p
   const [, force] = useState(0);
   const g = useMemo(() => (mode === "map" ? osmGround(lat, lon, () => force((n) => n + 1)) : null), [lat, lon, mode]);
   useEffect(() => () => g?.tex.dispose(), [g]);
+  // Distinct keys so switching modes remounts the mesh; otherwise React reuses the
+  // material and the map texture stays on the "simple plane".
   if (!g) {
-    return h("mesh", { "rotation-x": -Math.PI / 2, receiveShadow: true },
+    return h("mesh", { key: "plane", "rotation-x": -Math.PI / 2, receiveShadow: true },
       h("circleGeometry", { args: [220, 64] }),
       h("meshStandardMaterial", { color: "#dfe6dc", roughness: 1 }));
   }
-  return h("mesh", { "rotation-x": -Math.PI / 2, position: [g.offset[0], -0.02, g.offset[1]], receiveShadow: true },
+  return h("mesh", { key: "map", "rotation-x": -Math.PI / 2, position: [g.offset[0], -0.02, g.offset[1]], receiveShadow: true },
     h("planeGeometry", { args: [g.size, g.size] }),
     h("meshStandardMaterial", { map: g.tex, roughness: 1 }));
 }
@@ -116,7 +120,7 @@ function Model({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
     const boxOf = (o: THREE.Object3D) => new THREE.Box3().setFromObject(o);
     const focused = apts.find((a) => a.name === props.focusUnit) ?? null;
     const hidden = new Set(props.hiddenUnits ?? []);
-    root.traverse((o) => { if (o.userData["roof"] || /roof/i.test(o.name)) o.visible = !focused && hidden.size === 0; });
+    root.traverse((o) => { if (o.userData["roof"] || /roof/i.test(o.name)) o.visible = !focused && !props.cutaway && hidden.size === 0; });
     for (const a of apts) {
       a.visible = !hidden.has(a.name);
       a.children.forEach((c) => { if (c.userData["shell"] || /^SHELL/i.test(c.name) || /^Window/.test(c.name)) c.visible = true; });
@@ -130,7 +134,7 @@ function Model({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
       const fb = boxOf(focused);
       for (const a of apts) if (a !== focused && boxOf(a).min.y > fb.min.y + 0.5) a.visible = false;
     }
-  }, [root, props.focusUnit, props.focusDevice, isSample, props.hiddenUnits]);
+  }, [root, props.focusUnit, props.focusDevice, isSample, props.hiddenUnits, props.cutaway]);
 
   // Report which DEV_ objects the model has, so the panel can offer them when adding a device.
   const { onModelDevices } = props;

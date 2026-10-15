@@ -54,9 +54,11 @@ function SitePage() {
   const focusedUnit = sampleUnits.find((u) => u.object_name === unit) ?? null;
   const navBuilding = building !== "all" ? building : focusedUnit?.building_id ?? sampleBuildings[0]?.id ?? null;
   const buildingUnits = useMemo(() => sampleUnits.filter((u) => !navBuilding || u.building_id === navBuilding), [sampleUnits, navBuilding]);
-  const floors = useMemo(() => [...new Set(buildingUnits.map((u) => u.floor))].sort((a, b) => b - a), [buildingUnits]);
+  // With "All buildings" and nothing selected, the floor buttons apply to every building.
+  const floorUnits = building === "all" && !focusedUnit ? sampleUnits : buildingUnits;
+  const floors = useMemo(() => [...new Set(floorUnits.map((u) => u.floor))].sort((a, b) => b - a), [floorUnits]);
   const currentFloor = floor ?? focusedUnit?.floor ?? null;
-  const hiddenUnits = useMemo(() => (floor == null ? [] : buildingUnits.filter((u) => u.floor > floor).map((u) => u.object_name)), [buildingUnits, floor]);
+  const hiddenUnits = useMemo(() => (floor == null ? [] : floorUnits.filter((u) => u.floor > floor).map((u) => u.object_name)), [floorUnits, floor]);
   const tableUnits = useMemo(() => (building === "all" ? sampleUnits : sampleUnits.filter((u) => u.building_id === building)), [sampleUnits, building]);
 
   if (isLoading) return <div className="min-h-screen"><AppHeader /><p className="p-10 text-muted-foreground">Loading site…</p></div>;
@@ -72,7 +74,7 @@ function SitePage() {
           <div className="relative min-h-0 flex-[3]">
             <Suspense fallback={<div className="grid h-full place-items-center text-muted-foreground">Loading 3D view…</div>}>
               <SiteViewer lat={site.lat} lon={site.lon} rotation={site.rotation} scale={site.scale} glbUrl={data.glbUrl}
-                buildings={sampleBuildings} units={sampleUnits} hiddenUnits={hiddenUnits} focusUnit={unit} focusDevice={device} view={view} ground={ground}
+                buildings={sampleBuildings} units={sampleUnits} hiddenUnits={hiddenUnits} cutaway={floor != null} focusUnit={unit} focusDevice={device} view={view} ground={ground}
                 devices={siteDevices} onModelDevices={setModelDevices}
                 onPick={(u, d) => { setUnit(u); setDevice(d); }} />
             </Suspense>
