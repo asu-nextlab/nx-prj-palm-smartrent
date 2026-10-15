@@ -22,7 +22,7 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
   useEffect(() => {
     const t = new TilesRenderer();
     t.registerPlugin(new GoogleCloudAuthPlugin({ apiToken: apiKey, autoRefreshToken: true }));
-    t.registerPlugin(new ReorientationPlugin({ lat: lat * D2R, lon: lon * D2R, height: 0 }));
+    t.registerPlugin(new ReorientationPlugin({ lat: lat * D2R, lon: lon * D2R, height: 0, up: "+y" }));
     t.errorTarget = 12;
     t.fetchOptions = { ...t.fetchOptions, referrerPolicy: "strict-origin-when-cross-origin", mode: "cors" };
     gl.localClippingEnabled = true;
