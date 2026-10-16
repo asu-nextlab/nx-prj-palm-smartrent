@@ -28,7 +28,7 @@ Sample communities with multiple buildings and layouts (studio to three-bedroom)
 
 ## Workflow for modellers
 
-1. Model the site in Blender or SketchUp (metres, Y-up on export).
+1. Model the site in Blender or SketchUp (meters, Y-up on export).
 2. Name each apartment `APT_<number>` and nest its devices as `DEV_<kind>`.
 3. Add optional custom properties for apartment details.
 4. Export as `.glb` and upload it on the Sites page.
