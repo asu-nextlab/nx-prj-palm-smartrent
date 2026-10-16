@@ -1,4 +1,5 @@
 # Viewer interaction fixes
+- [ ] Preserve apartment-focus camera direction and verify angled and straight-down views.
 - [x] Apply requested site copy fixes and audit spelling/punctuation without changing viewer behavior.
 - [x] Filter hidden and non-interactive geometry from picking.
 - [x] Reject drags and long presses as clicks.
