@@ -8,6 +8,7 @@ import { isApartment } from "@/lib/twin/ingest";
 import { clickableMeshes, isClick, PICK_LAYER, tagsOf, updateRoofs, type PointerStart } from "@/lib/twin/selection";
 import { googleTiles, osmGround } from "@/lib/twin/osm";
 import { City3D } from "./City3D";
+import { apartmentFocusPosition } from "@/lib/twin/camera-focus";
 
 export type GroundMode = "map" | "satellite" | "roadmap" | "city3d" | "plane";
 export interface GoogleTiles { key: string; sessions: { satellite: string; roadmap: string } }
@@ -156,6 +157,10 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     const center = box.getCenter(new THREE.Vector3());
     const r = Math.max(8, box.getSize(new THREE.Vector3()).length() * (focused ? 0.9 : 0.6));
     if (props.view === "2d") c.setLookAt(center.x, center.y + r * 1.6, center.z + 0.001, center.x, center.y, center.z, true);
+    else if (focused) {
+      const position = apartmentFocusPosition(c.getPosition(new THREE.Vector3(), false), c.getTarget(new THREE.Vector3(), false), center, r * Math.hypot(0.7, 0.75, 0.9));
+      c.setLookAt(position.x, position.y, position.z, center.x, center.y, center.z, true);
+    }
     else c.setLookAt(center.x + r * 0.7, center.y + r * 0.75, center.z + r * 0.9, center.x, center.y, center.z, true);
   }, [root, props.focusUnit, props.view]);
 

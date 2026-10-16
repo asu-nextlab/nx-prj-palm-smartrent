@@ -13,3 +13,4 @@
 - Site data (sites, buildings, units, devices) lives in the shared backend database and is shared by every signed-in team member; GLB files go in the private `models` storage bucket.
 - Google 2D imagery and 3D city tiles use a team-only server function that hands the browser a referrer-restricted Google Map Tiles key; the 3D tiles are clipped by an auto box around the model so scanned buildings don't overlap ours.
 - Viewer picking uses a dedicated selection layer and a shared visibility/gesture module; floor cutaways span all buildings, keeping hidden geometry and camera drags out of selection without changing table focus.
+- Apartment camera destinations use the shared camera-focus helper, with regression tests, so focusing preserves the current orbit direction while retaining the existing animated transition and distance.
