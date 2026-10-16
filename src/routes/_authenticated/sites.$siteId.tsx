@@ -25,6 +25,8 @@ export const Route = createFileRoute("/_authenticated/sites/$siteId")({
       { name: "description", content: "Explore a SmartRent community in 2D and 3D, edit apartments and inspect devices." },
       { property: "og:title", content: "Site explorer — SmartRent Digital Twin" },
       { property: "og:description", content: "Explore a SmartRent community in 2D and 3D." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: SitePage,

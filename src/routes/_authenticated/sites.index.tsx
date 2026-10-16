@@ -20,6 +20,8 @@ export const Route = createFileRoute("/_authenticated/sites/")({
       { name: "description", content: "All SmartRent communities and uploaded site models." },
       { property: "og:title", content: "Sites — SmartRent Digital Twin" },
       { property: "og:description", content: "All SmartRent communities and uploaded site models." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: SitesPage,
