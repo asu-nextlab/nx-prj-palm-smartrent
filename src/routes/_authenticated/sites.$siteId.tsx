@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { hiddenForFloor } from "@/lib/twin/selection";
 
 const SiteViewer = lazy(() => import("@/components/twin/SiteViewer"));
 
@@ -63,11 +64,9 @@ function SitePage() {
   const sampleBuildings = useMemo(() => data?.buildings ?? [], [data?.buildings]);
   const sampleUnits = useMemo(() => data?.units ?? [], [data?.units]);
   const focusedUnit = sampleUnits.find((u) => u.object_name === unit) ?? null;
-  const navBuilding = building !== "all" ? building : focusedUnit?.building_id ?? sampleBuildings[0]?.id ?? null;
-  const buildingUnits = useMemo(() => sampleUnits.filter((u) => !navBuilding || u.building_id === navBuilding), [sampleUnits, navBuilding]);
-  const floors = useMemo(() => [...new Set(buildingUnits.map((u) => u.floor))].sort((a, b) => b - a), [buildingUnits]);
+  const floors = useMemo(() => [...new Set(sampleUnits.map((u) => u.floor))].sort((a, b) => b - a), [sampleUnits]);
   const currentFloor = floor ?? focusedUnit?.floor ?? null;
-  const hiddenUnits = useMemo(() => (floor == null ? [] : buildingUnits.filter((u) => u.floor > floor).map((u) => u.object_name)), [buildingUnits, floor]);
+  const hiddenUnits = useMemo(() => hiddenForFloor(sampleUnits, floor), [sampleUnits, floor]);
   const tableUnits = useMemo(() => (building === "all" ? sampleUnits : sampleUnits.filter((u) => u.building_id === building)), [sampleUnits, building]);
 
   if (isLoading) return <div className="min-h-screen"><AppHeader /><p className="p-10 text-muted-foreground">Loading site…</p></div>;

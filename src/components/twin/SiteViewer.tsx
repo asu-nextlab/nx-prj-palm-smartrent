@@ -1,10 +1,11 @@
-import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Environment, Lightformer, useGLTF } from "@react-three/drei";
 import { createElement as h, Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { buildInterior, buildSampleSite, type SampleBuilding, type SampleUnit } from "@/lib/twin/build";
 import { layoutOf } from "@/lib/twin/templates";
-import { isApartment, isDevice } from "@/lib/twin/ingest";
+import { isApartment } from "@/lib/twin/ingest";
+import { clickableMeshes, isClick, PICK_LAYER, tagsOf, updateRoofs, type PointerStart } from "@/lib/twin/selection";
 import { googleTiles, osmGround } from "@/lib/twin/osm";
 import { City3D } from "./City3D";
 
@@ -22,14 +23,47 @@ export interface ViewerProps {
   onPick: (unit: string | null, device: string | null) => void;
 }
 
-function findTagged(o: THREE.Object3D | null) {
-  let device: string | null = null, unit: string | null = null;
-  while (o) {
-    if (!device && isDevice(o)) device = o.name;
-    if (isApartment(o)) { unit = o.name; break; }
-    o = o.parent;
-  }
-  return { unit, device };
+function Selection({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
+  const { gl, camera } = useThree();
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const raycaster = new THREE.Raycaster();
+    raycaster.layers.set(PICK_LAYER);
+    let start: PointerStart | null = null;
+    const pointers = new Set<number>();
+    const down = (e: PointerEvent) => {
+      pointers.add(e.pointerId);
+      start = pointers.size === 1 && e.button === 0
+        ? { x: e.clientX, y: e.clientY, time: e.timeStamp, id: e.pointerId, distance: 0 } : null;
+    };
+    const move = (e: PointerEvent) => {
+      if (start?.id === e.pointerId) start.distance = Math.max(start.distance, Math.hypot(e.clientX - start.x, e.clientY - start.y));
+    };
+    const up = (e: PointerEvent) => {
+      const click = isClick(start, e);
+      start = null;
+      pointers.delete(e.pointerId);
+      if (!click || e.target !== canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      root.updateWorldMatrix(true, true);
+      raycaster.setFromCamera(new THREE.Vector2((e.clientX - rect.left) / rect.width * 2 - 1, -(e.clientY - rect.top) / rect.height * 2 + 1), camera);
+      const hit = raycaster.intersectObjects(clickableMeshes(root, props.focusUnit), false)[0];
+      if (hit) { const { unit, device } = tagsOf(hit.object); props.onPick(unit, device); }
+      else props.onPick(null, null);
+    };
+    const cancel = (e: PointerEvent) => { start = null; pointers.delete(e.pointerId); };
+    canvas.addEventListener("pointerdown", down);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    return () => {
+      canvas.removeEventListener("pointerdown", down);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+    };
+  }, [gl, camera, root, props.focusUnit, props.onPick]);
+  return null;
 }
 
 function Ground({ lat, lon, mode, google }: { lat: number; lon: number; mode: GroundMode; google?: GoogleTiles | null }) {
@@ -86,7 +120,6 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     const boxOf = (o: THREE.Object3D) => new THREE.Box3().setFromObject(o);
     const focused = apts.find((a) => a.name === props.focusUnit) ?? null;
     const hidden = new Set(props.hiddenUnits ?? []);
-    root.traverse((o) => { if (o.userData["roof"] || /roof/i.test(o.name)) o.visible = !focused && hidden.size === 0; });
     for (const a of apts) {
       a.visible = !hidden.has(a.name);
       a.children.forEach((c) => { if (c.userData["shell"] || /^SHELL/i.test(c.name) || /^Window/.test(c.name)) c.visible = true; });
@@ -97,13 +130,18 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
       if (isSample && !focused.getObjectByName("INTERIOR")) focused.add(buildInterior(layoutOf(focused.userData["layout"])));
       const int = focused.getObjectByName("INTERIOR"); if (int) int.visible = true;
       focused.children.forEach((c) => { if (c.userData["shell"] || /^SHELL/i.test(c.name) || /^Window/.test(c.name)) c.visible = false; });
+      const focusedFloor = props.units.find((u) => u.object_name === focused.name)?.floor;
       const fb = boxOf(focused);
-      for (const a of apts) if (a !== focused && boxOf(a).min.y > fb.min.y + 0.5) a.visible = false;
+      for (const a of apts) {
+        const level = props.units.find((u) => u.object_name === a.name)?.floor;
+        if (a !== focused && (level !== undefined && focusedFloor !== undefined ? level > focusedFloor : boxOf(a).min.y > fb.min.y + 0.5)) a.visible = false;
+      }
     }
+    updateRoofs(root, focused);
     root.updateMatrixWorld(true);
     const sel = (props.focusDevice && focused?.getObjectByName(props.focusDevice)) || focused;
     setHelper(sel ? new THREE.Box3Helper(boxOf(sel).expandByScalar(0.08), new THREE.Color(props.focusDevice ? "#ff8a3d" : "#32bdcd")) : null);
-  }, [root, props.focusUnit, props.focusDevice, isSample, props.hiddenUnits]);
+  }, [root, props.focusUnit, props.focusDevice, isSample, props.hiddenUnits, props.units]);
 
   // camera
   useEffect(() => {
@@ -121,16 +159,11 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     else c.setLookAt(center.x + r * 0.7, center.y + r * 0.75, center.z + r * 0.9, center.x, center.y, center.z, true);
   }, [root, props.focusUnit, props.view]);
 
-  const onClick = (e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation();
-    const { unit, device } = findTagged(e.object);
-    if (unit) props.onPick(unit, device);
-  };
-
   return h(Fragment, null,
+    h(Selection, { root, props }),
     h(CameraControls, { ref: controls, makeDefault: true, maxPolarAngle: props.view === "2d" ? 0.01 : Math.PI / 2.1, minDistance: 2, maxDistance: props.ground === "city3d" ? 3000 : 600 }),
     h("group", { "rotation-y": THREE.MathUtils.degToRad(props.rotation), scale: props.scale, "position-y": props.ground === "city3d" ? props.elevation ?? 0 : 0 },
-      h("primitive", { object: root, onClick })),
+      h("primitive", { object: root })),
     helper ? h("primitive", { object: helper }) : null);
 }
 
@@ -158,11 +191,11 @@ export default function SiteViewer(props: ViewerProps) {
   const city = props.ground === "city3d" && props.google;
   return (
     <div className="relative h-full w-full">
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.1, far: 3000 }} onPointerMissed={() => props.onPick(null, null)}>
+      <Canvas shadows dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.1, far: 3000 }}>
         {h(SceneSetup, { far: !!city })}
         {h(CompassTracker, { el: compass })}
         {city
-          ? h(City3D, { key: `${props.lat},${props.lon}`, lat: props.lat, lon: props.lon, apiKey: props.google!.key, target, clip: props.clip ?? true })
+          ? h(City3D, { key: `${props.lat},${props.lon}`, lat: props.lat, lon: props.lon, apiKey: city.key, target, clip: props.clip ?? true })
           : h(Ground, { lat: props.lat, lon: props.lon, mode: props.ground, google: props.google ?? null })}
         {h(Suspense, { fallback: null },
           props.glbUrl
