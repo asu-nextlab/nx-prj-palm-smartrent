@@ -1,4 +1,5 @@
 # Viewer interaction fixes
+- [ ] Correct site shadow acne and verify Mesa Lofts and Joey Lone Apartment in explore and focused views.
 - [x] Verify compass synchronization in signed-in plan, overhead explore, and spreadsheet focus transitions; 14 regression tests pass and appearance is unchanged.
 - [x] Bound continuous camera panning to the full ground footprint; repeated real drags, zoom, rotation, and angled/overhead apartment focus verified.
 - [x] Preserve apartment-focus camera direction; angled and straight-down spreadsheet focus verified in the signed-in Mesa Lofts viewer.
