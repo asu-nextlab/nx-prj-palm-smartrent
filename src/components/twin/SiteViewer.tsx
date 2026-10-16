@@ -9,6 +9,7 @@ import { clickableMeshes, isClick, PICK_LAYER, tagsOf, updateRoofs, type Pointer
 import { googleTiles, osmGround } from "@/lib/twin/osm";
 import { City3D } from "./City3D";
 import { apartmentFocusPosition } from "@/lib/twin/camera-focus";
+import { compassRotationDegrees } from "@/lib/twin/compass";
 import { groundPanBounds, mapGroundFootprint, SIMPLE_GROUND_RADIUS } from "@/lib/twin/ground-bounds";
 
 export type GroundMode = "map" | "satellite" | "roadmap" | "city3d" | "plane";
@@ -191,14 +192,15 @@ function SampleRoot({ props, target }: { props: ViewerProps; target: React.Mutab
 
 // Rotates the DOM compass so its N always points to world north (-Z) on screen.
 function CompassTracker({ el }: { el: React.RefObject<HTMLDivElement | null> }) {
-  const dir = useMemo(() => new THREE.Vector3(), []);
+  const orientation = useMemo(() => new THREE.Quaternion(), []);
+  // CameraControls runs at priority -1. Read its final orientation every frame
+  // at priority 0, including plan changes, damping and focus transitions.
   useFrame(({ camera }) => {
     if (!el.current) return;
-    camera.getWorldDirection(dir);
-    const flat = Math.hypot(dir.x, dir.z);
-    const deg = flat < 1e-4 ? 0 : -Math.atan2(dir.x, -dir.z) * 180 / Math.PI;
+    camera.getWorldQuaternion(orientation);
+    const deg = compassRotationDegrees(orientation);
     el.current.style.transform = `rotate(${deg}deg)`;
-  });
+  }, 0);
   return null;
 }
 

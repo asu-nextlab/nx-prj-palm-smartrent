@@ -15,3 +15,4 @@
 - Viewer picking uses a dedicated selection layer and a shared visibility/gesture module; floor cutaways span all buildings, keeping hidden geometry and camera drags out of selection without changing table focus.
 - Apartment camera destinations use the shared camera-focus helper, with regression tests, so focusing preserves the current orbit direction while retaining the existing animated transition and distance.
 - Ground rendering and camera pan limits share one footprint calculation; CameraControls target boundaries constrain continuous panning without enclosing the camera, so zoom and rotation remain independent.
+- Compass heading uses the camera's quaternion-derived screen-right axis after each controls update, so plan and overhead views retain a stable heading during animations.

@@ -1,4 +1,5 @@
 # Viewer interaction fixes
+- [ ] Verify compass synchronization in plan, overhead explore, and focus transitions without changing its appearance.
 - [x] Bound continuous camera panning to the full ground footprint; repeated real drags, zoom, rotation, and angled/overhead apartment focus verified.
 - [x] Preserve apartment-focus camera direction; angled and straight-down spreadsheet focus verified in the signed-in Mesa Lofts viewer.
 - [x] Apply requested site copy fixes and audit spelling/punctuation without changing viewer behavior.
