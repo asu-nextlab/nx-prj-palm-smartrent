@@ -102,7 +102,7 @@ function SitePage() {
                     {f}
                   </button>
                 ))}
-                <button onClick={() => setFloor(null)} aria-pressed={floor == null} className={cn("h-7 w-10 rounded-md text-[0.65rem] font-medium", floor == null ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted")}>All</button>
+                <button onClick={() => { setFloor(null); setUnit(null); setDevice(null); }} aria-pressed={currentFloor == null} className={cn("h-7 w-10 rounded-md text-[0.65rem] font-medium", currentFloor == null ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted")}>All</button>
               </nav>
             )}
             {needsGoogle && <span className="absolute bottom-2 right-2 rounded bg-card/90 px-2 py-0.5 text-[0.65rem] font-medium text-muted-foreground">Google · Map data ©{new Date().getFullYear()} Google</span>}

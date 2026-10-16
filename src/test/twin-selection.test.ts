@@ -40,7 +40,9 @@ describe("Viewer selection rules", () => {
     const ray = new THREE.Raycaster(new THREE.Vector3(0, 10, 0), new THREE.Vector3(0, -1, 0));
     ray.layers.set(PICK_LAYER);
     const hits = ray.intersectObjects(clickableMeshes(root, null), false);
-    expect(tagsOf(hits[0].object).unit).toBe("APT_301");
+    const hit = hits[0];
+    if (!hit) throw new Error("Top-floor apartment was not hit");
+    expect(tagsOf(hit.object).unit).toBe("APT_301");
     expect(roof.visible).toBe(true);
     expect(roof.layers.isEnabled(0)).toBe(true);
   });
@@ -73,7 +75,7 @@ describe("Viewer selection rules", () => {
     apartments.forEach((apt) => { apt.visible = true; });
     updateRoofs(root, null);
     expect(roofs.map((r) => r.visible)).toEqual([true, true]);
-    updateRoofs(root, apartments[0]);
+    updateRoofs(root, apartments[0] ?? null);
     expect(roofs.map((r) => r.visible)).toEqual([false, true]);
   });
 
@@ -89,7 +91,9 @@ describe("Viewer selection rules", () => {
     expect(meshes).toEqual([screen]);
     const ray = new THREE.Raycaster(new THREE.Vector3(0, 10, 0), new THREE.Vector3(0, -1, 0));
     ray.layers.set(PICK_LAYER);
-    expect(tagsOf(ray.intersectObjects(meshes, false)[0].object)).toEqual({ unit: "APT_101", device: "DEV_tv" });
+    const hit = ray.intersectObjects(meshes, false)[0];
+    if (!hit) throw new Error("Device was not hit");
+    expect(tagsOf(hit.object)).toEqual({ unit: "APT_101", device: "DEV_tv" });
     device.visible = false;
     expect(clickableMeshes(root, "APT_101")).toEqual([]);
   });
