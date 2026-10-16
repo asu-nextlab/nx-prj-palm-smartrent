@@ -62,7 +62,7 @@ export function updateRoofs(root: THREE.Object3D, focused: THREE.Object3D | null
       const apartments: THREE.Object3D[] = [];
       owner.traverse((object) => { if (isApartment(object)) apartments.push(object); });
       if (apartments.length) {
-        roof.visible = apartments.every(isVisible) && !apartments.includes(focused as THREE.Object3D);
+        roof.visible = apartments.every(isVisible) && !(focused && apartments.includes(focused));
         break;
       }
       owner = owner.parent;
