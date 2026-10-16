@@ -40,11 +40,11 @@ export function ModellerGuide() {
         <div className="mt-4 text-muted-foreground">
           <TabsContent value="workflow">
             <ol className="list-decimal space-y-1.5 pl-5">
-              <li>Set <b>Scene → Units</b> to Metric, unit scale 1.0 (1 Blender unit = 1 metre).</li>
+              <li>Set <b>Scene → Units</b> to Metric, unit scale 1.0 (1 Blender unit = 1 meter).</li>
               <li>Centre the complex on the world origin (0, 0, 0). Ground level is Z = 0.</li>
               <li>Point the site's north toward Blender's <b>−Y</b> axis. Rotation can be fine-tuned in the app.</li>
               <li>Model the site context (ground, roads, paths, trees, parking) — these can be named freely.</li>
-              <li>Model each featured apartment as its own parent object (Empty or mesh), with walls, furniture and devices parented beneath it.</li>
+              <li>Model each featured apartment as its own parent object (empty or mesh), with walls, furniture and devices parented beneath it.</li>
               <li>Name everything using the conventions in the next tabs, then export as GLB.</li>
             </ol>
           </TabsContent>
@@ -54,7 +54,7 @@ export function ModellerGuide() {
               <li>Exterior walls / roof inside an apartment: <C>SHELL</C>. Hidden automatically when looking inside.</li>
               <li>Devices: <C>DEV_&lt;kind&gt;</C>, e.g. <C>DEV_fridge</C>. Suffix duplicates: <C>DEV_tv_living</C>, <C>DEV_tv_bedroom</C>.</li>
               <li>Furniture and other parts: any name not starting with <C>APT_</C> or <C>DEV_</C>.</li>
-              <li>Use underscores, not spaces or dots. Rename Blender's <C>.001</C> suffixes.</li>
+              <li>Use underscores, not spaces or dots. Remove Blender's <C>.001</C> suffixes.</li>
             </ul>
             <pre className="mt-3 overflow-x-auto rounded-md bg-muted p-3 text-xs text-foreground">{`Site
 ├─ Ground, Road_Main, Tree_01 …
@@ -79,7 +79,7 @@ export function ModellerGuide() {
               <li><C>floor</C> (number — otherwise worked out from height, ~3 m per floor)</li>
               <li><C>layout</C> (text, e.g. "2B2B Corner")</li>
             </ul>
-            <p className="mt-2">All optional — missing values can be filled in the apartment spreadsheet. Spreadsheet edits don't change the GLB.</p>
+            <p className="mt-2">All optional, missing values can be filled in the apartment spreadsheet. Spreadsheet edits don't change the GLB.</p>
           </TabsContent>
           <TabsContent value="export">
             <ol className="list-decimal space-y-1.5 pl-5">
@@ -92,7 +92,7 @@ export function ModellerGuide() {
           </TabsContent>
           <TabsContent value="check">
             <ul className="list-disc space-y-1 pl-5">
-              <li>Units are metres and the site is centred at the origin.</li>
+              <li>Units are meters and the site is centred at the origin.</li>
               <li>Every featured apartment is named <C>APT_&lt;number&gt;</C> with a unique number.</li>
               <li>All devices are parented inside their apartment and start with <C>DEV_</C>.</li>
               <li>No leftover <C>.001</C> name suffixes.</li>
