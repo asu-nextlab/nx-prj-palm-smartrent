@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import CameraControls from "camera-controls";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { groundPanBounds, mapGroundFootprint } from "@/lib/twin/ground-bounds";
 
 CameraControls.install({ THREE });
@@ -21,6 +21,8 @@ describe("Ground pan boundaries", () => {
   });
 
   it("clamps repeated pan updates while retaining zoom distance and rotation", () => {
+    // The test DOM lacks DOMRect, which CameraControls uses for viewport state.
+    vi.stubGlobal("DOMRect", class { x = 0; y = 0; width = 0; height = 0; });
     const camera = new THREE.PerspectiveCamera();
     camera.position.set(0, 50, 80);
     const controls = new CameraControls(camera);
@@ -41,5 +43,6 @@ describe("Ground pan boundaries", () => {
       expect(controls.polarAngle).toBe(polar);
     }
     controls.dispose();
+    vi.unstubAllGlobals();
   });
 });
