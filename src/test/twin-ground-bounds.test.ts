@@ -31,7 +31,8 @@ describe("Ground pan boundaries", () => {
     const distance = controls.distance;
     const azimuth = controls.azimuthAngle;
     const polar = controls.polarAngle;
-    for (const [x, z] of [[1000, 1000], [-1000, -1000], [1000, -1000]]) {
+    const attempts: [number, number][] = [[1000, 1000], [-1000, -1000], [1000, -1000]];
+    for (const [x, z] of attempts) {
       controls.moveTo(x, 10, z, false);
       controls.update(1 / 60);
       const target = controls.getTarget(new THREE.Vector3(), false);
