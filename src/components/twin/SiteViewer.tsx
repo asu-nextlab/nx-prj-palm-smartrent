@@ -9,6 +9,7 @@ import { clickableMeshes, isClick, PICK_LAYER, tagsOf, updateRoofs, type Pointer
 import { googleTiles, osmGround } from "@/lib/twin/osm";
 import { City3D } from "./City3D";
 import { apartmentFocusPosition } from "@/lib/twin/camera-focus";
+import { groundPanBounds, mapGroundFootprint, SIMPLE_GROUND_RADIUS } from "@/lib/twin/ground-bounds";
 
 export type GroundMode = "map" | "satellite" | "roadmap" | "city3d" | "plane";
 export interface GoogleTiles { key: string; sessions: { satellite: string; roadmap: string } }
@@ -78,7 +79,7 @@ function Ground({ lat, lon, mode, google }: { lat: number; lon: number; mode: Gr
   useEffect(() => () => g?.tex.dispose(), [g]);
   if (!g) {
     return h("mesh", { key: "plane", "rotation-x": -Math.PI / 2, receiveShadow: true },
-      h("circleGeometry", { args: [220, 64] }),
+      h("circleGeometry", { args: [SIMPLE_GROUND_RADIUS, 64] }),
       h("meshStandardMaterial", { color: "#dfe6dc", roughness: 1 }));
   }
   return h("mesh", { key: `tiles-${mode}`, "rotation-x": -Math.PI / 2, position: [g.offset[0], -0.02, g.offset[1]], receiveShadow: true },
@@ -112,6 +113,17 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
   const [helper, setHelper] = useState<THREE.Box3Helper | null>(null);
   const isSample = !props.glbUrl;
   const camKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    const c = controls.current;
+    if (!c) return;
+    const tiled = props.ground === "map" || props.ground === "city3d" || ((props.ground === "satellite" || props.ground === "roadmap") && !!props.google);
+    const footprint = tiled ? mapGroundFootprint(props.lat, props.lon) : { size: SIMPLE_GROUND_RADIUS * 2, offset: [0, 0] as [number, number] };
+    // CameraControls clamps every truck/pan update, not just this initial target.
+    // Only the target is enclosed: orbit rotation and zoom remain unrestricted.
+    c.setBoundary(groundPanBounds(footprint.size, footprint.offset));
+    c.boundaryEnclosesCamera = false;
+  }, [props.lat, props.lon, props.ground, props.google]);
 
   // visibility / interior management
   useEffect(() => {

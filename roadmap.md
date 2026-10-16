@@ -1,4 +1,5 @@
 # Viewer interaction fixes
+- [ ] Bound continuous camera panning to the full ground footprint and verify pan, zoom, rotation, and focus.
 - [x] Preserve apartment-focus camera direction; angled and straight-down spreadsheet focus verified in the signed-in Mesa Lofts viewer.
 - [x] Apply requested site copy fixes and audit spelling/punctuation without changing viewer behavior.
 - [x] Filter hidden and non-interactive geometry from picking.
