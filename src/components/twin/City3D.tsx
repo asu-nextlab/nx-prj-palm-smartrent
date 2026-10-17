@@ -51,26 +51,28 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
   // wrap it: turn 180° so north is -Z like our street map, and lift/lower the wrapper to ground it.
   const wrap = useMemo(() => { const g = new THREE.Group(); g.rotation.y = Math.PI; return g; }, []);
   useEffect(() => { if (!tiles) return; wrap.add(tiles.group); return () => { wrap.remove(tiles.group); }; }, [tiles, wrap]);
-  const state = useMemo(() => ({ grounded: false, frame: 0, ray: new THREE.Raycaster() }), [tiles]);
+  const state = useMemo(() => ({ frame: 0, ray: new THREE.Raycaster() }), [tiles]);
   useFrame(() => {
     if (!tiles) return;
     camera.updateMatrixWorld();
+    wrap.updateMatrixWorld(true);
     tiles.setResolutionFromRenderer(camera, gl);
     tiles.update();
     state.frame++;
-    // Auto-ground: drop a ray straight down at the site origin until it hits the scan.
-    if (!state.grounded && state.frame % 20 === 0) {
+    // Keep grounding as coarse tiles are replaced with detailed terrain. Repeated
+    // hits on the same coarse tile do not mean the final height has settled.
+    if (state.frame % 20 === 0) {
       wrap.updateMatrixWorld(true);
       state.ray.set(new THREE.Vector3(0, 10000, 0), new THREE.Vector3(0, -1, 0));
       state.ray.far = 30000;
       const hit = state.ray.intersectObject(tiles.group, true)[0];
       if (hit) {
         wrap.position.y -= hit.point.y;
-        // Once the drop settles (detail has loaded), stop probing.
-        if (Math.abs(hit.point.y) < 0.5 && state.frame > 200) {
-          state.grounded = true;
-          if (probeRef.current) { tiles.deleteCamera(probeRef.current); probeRef.current = null; }
-        }
+        wrap.updateMatrixWorld(true);
+        // The main camera is now above terrain and can request local detail.
+        // Retaining the wide altitude probe competes with those requests on a
+        // cold load; remove it immediately rather than waiting for frame counts.
+        if (probeRef.current) { tiles.deleteCamera(probeRef.current); probeRef.current = null; }
       }
     }
     // Clip box: world-space bounds of our model, from below ground to well above the roofline.
@@ -81,12 +83,12 @@ export function City3D({ lat, lon, apiKey, target, clip }: {
         if (!b.isEmpty()) {
           b.expandByVector(new THREE.Vector3(1.5, 0, 1.5));
           b.min.y = -30; b.max.y = Math.max(b.max.y, 0) + 400;
-          planes[0]!.set(new THREE.Vector3(1, 0, 0), -b.max.x);
-          planes[1]!.set(new THREE.Vector3(-1, 0, 0), b.min.x);
-          planes[2]!.set(new THREE.Vector3(0, 1, 0), -b.max.y);
-          planes[3]!.set(new THREE.Vector3(0, -1, 0), b.min.y);
-          planes[4]!.set(new THREE.Vector3(0, 0, 1), -b.max.z);
-          planes[5]!.set(new THREE.Vector3(0, 0, -1), b.min.z);
+          planes[0]?.set(new THREE.Vector3(1, 0, 0), -b.max.x);
+          planes[1]?.set(new THREE.Vector3(-1, 0, 0), b.min.x);
+          planes[2]?.set(new THREE.Vector3(0, 1, 0), -b.max.y);
+          planes[3]?.set(new THREE.Vector3(0, -1, 0), b.min.y);
+          planes[4]?.set(new THREE.Vector3(0, 0, 1), -b.max.z);
+          planes[5]?.set(new THREE.Vector3(0, 0, -1), b.min.z);
           return;
         }
       }
