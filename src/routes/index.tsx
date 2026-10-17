@@ -33,7 +33,7 @@ function Index() {
         </div>
         <div className="mt-20 grid gap-6 border-t border-ink-foreground/15 pt-8 sm:grid-cols-3">
           {[["Geolocate", "Position your site model on OpenStreetMap and adjust its rotation."], ["Ingest", "Apartment objects with the prefix APT_ are added to the site's apartment spreadsheet, one row per apartment."], ["Inspect", "Device objects with the prefix DEV_ inside an apartment can be selected in the 3D viewer."]].map(([t, d]) => (
-            <div key={t}><div className="font-display text-ink-foreground/60">{t}</div><div className="mt-1 text-sm text-ink-foreground/60">{d}</div></div>
+            <div key={t}><div className="font-display font-bold text-ink-foreground/60">{t}</div><div className="mt-1 text-sm text-ink-foreground/60">{d}</div></div>
           ))}
         </div>
       </main>
