@@ -1,4 +1,5 @@
 # Viewer interaction fixes
+- [x] Correct site shadow acne; signed-in Mesa Lofts and Joey Lone Apartment explore/focused screenshots are clean, zero-bias comparisons reproduce Joey's stripes, and 18 regression tests pass. Three's current renderer substitutes PCFShadowMap for the requested PCFSoftShadowMap.
 - [x] Verify compass synchronization in signed-in plan, overhead explore, and spreadsheet focus transitions; 14 regression tests pass and appearance is unchanged.
 - [x] Bound continuous camera panning to the full ground footprint; repeated real drags, zoom, rotation, and angled/overhead apartment focus verified.
 - [x] Preserve apartment-focus camera direction; angled and straight-down spreadsheet focus verified in the signed-in Mesa Lofts viewer.

@@ -11,6 +11,7 @@ import { City3D } from "./City3D";
 import { apartmentFocusPosition } from "@/lib/twin/camera-focus";
 import { compassRotationDegrees } from "@/lib/twin/compass";
 import { groundPanBounds, mapGroundFootprint, SIMPLE_GROUND_RADIUS } from "@/lib/twin/ground-bounds";
+import { fitSiteShadow, SITE_SHADOW_BIAS, SITE_SHADOW_MAP_SIZE, SITE_SHADOW_NORMAL_BIAS } from "@/lib/twin/shadows";
 
 export type GroundMode = "map" | "satellite" | "roadmap" | "city3d" | "plane";
 export interface GoogleTiles { key: string; sessions: { satellite: string; roadmap: string } }
@@ -95,11 +96,21 @@ function SceneSetup({ far }: { far: boolean }) {
     h("color", { attach: "background", args: ["#e9eef0"] }),
     h("fog", { attach: "fog", args: ["#e9eef0", far ? 1500 : 260, far ? 6000 : 700] }),
     h("hemisphereLight", { args: ["#ffffff", "#c9c2b4", 0.7] }),
-    h("directionalLight", { position: [60, 90, 40], intensity: 1.6, castShadow: true, "shadow-mapSize": [2048, 2048],
-      "shadow-camera-left": -120, "shadow-camera-right": 120, "shadow-camera-top": 120, "shadow-camera-bottom": -120 }),
     h(Environment, { resolution: 64 },
       h(Lightformer, { intensity: 2, position: [0, 5, 0], scale: [10, 10, 1] }),
       h(Lightformer, { intensity: 1, color: "#bde", position: [-5, 1, -1], rotation: [0, Math.PI / 2, 0], scale: [20, 1, 1] })));
+}
+
+function SiteLight({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
+  const light = useRef<THREE.DirectionalLight>(null);
+  useEffect(() => {
+    if (light.current) fitSiteShadow(light.current, root);
+  }, [root, props.rotation, props.scale, props.elevation, props.ground, props.focusUnit]);
+  return h("directionalLight", {
+    ref: light, position: [60, 90, 40], intensity: 1.6, castShadow: true,
+    "shadow-normalBias": SITE_SHADOW_NORMAL_BIAS, "shadow-bias": SITE_SHADOW_BIAS,
+    "shadow-mapSize": [SITE_SHADOW_MAP_SIZE, SITE_SHADOW_MAP_SIZE],
+  });
 }
 
 function GlbRoot({ url, children }: { url: string; children: (root: THREE.Object3D) => React.ReactNode }) {
@@ -178,6 +189,7 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
   }, [root, props.focusUnit, props.view]);
 
   return h(Fragment, null,
+    h(SiteLight, { root, props }),
     h(Selection, { root, props }),
     h(CameraControls, { ref: controls, makeDefault: true, maxPolarAngle: props.view === "2d" ? 0.01 : Math.PI / 2.1, minDistance: 2, maxDistance: props.ground === "city3d" ? 3000 : 600 }),
     h("group", { "rotation-y": THREE.MathUtils.degToRad(props.rotation), scale: props.scale, "position-y": props.ground === "city3d" ? props.elevation ?? 0 : 0 },
@@ -210,7 +222,7 @@ export default function SiteViewer(props: ViewerProps) {
   const city = props.ground === "city3d" && props.google;
   return (
     <div className="relative h-full w-full">
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.1, far: 3000 }}>
+      <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.1, far: 3000 }}>
         {h(SceneSetup, { far: !!city })}
         {h(CompassTracker, { el: compass })}
         {city
