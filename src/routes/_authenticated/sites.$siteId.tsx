@@ -124,9 +124,14 @@ function SitePage() {
               {heatMode !== "off" && (
                 <div className="flex items-center gap-2 rounded-md bg-card/95 px-2 py-1 text-[0.65rem] text-muted-foreground shadow-sm ring-1 ring-border">
                   <span className="font-medium text-foreground">{HEAT_LEGENDS[heatMode].label}</span>
-                  {HEAT_LEGENDS[heatMode].stops.map(([color, label], i) => (
-                    <span key={i} className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />{label}</span>
-                  ))}
+                  {HEAT_LEGENDS[heatMode].extra && (
+                    <span className="flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-sm" style={{ background: HEAT_LEGENDS[heatMode].extra![0] }} />{HEAT_LEGENDS[heatMode].extra![1]}
+                    </span>
+                  )}
+                  <span>{HEAT_LEGENDS[heatMode].from}</span>
+                  <span className="h-2.5 w-28 rounded-sm" style={{ background: HEAT_LEGENDS[heatMode].gradient }} />
+                  <span>{HEAT_LEGENDS[heatMode].to}</span>
                 </div>
               )}
               <Seg value={heatMode} onChange={(v) => setHeatMode(v as HeatMode)} options={[["off", "Heatmap off"], ["priority", "Priority"], ["energy", "Energy"], ["age", "Device age"]]} />

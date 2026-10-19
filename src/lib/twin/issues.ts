@@ -18,6 +18,11 @@ export const RULES = {
   highEnergyFactor: 1.5,
   /** Priority thresholds for each level. */
   levels: { urgent: 80, high: 50, medium: 25 },
+  /** Heatmap apartment score = worst issue + this share of every other issue's points, so an
+   *  apartment with three urgent devices reads hotter than one with a single urgent device. */
+  otherIssuesWeight: 0.25,
+  /** Apartment score at which the heatmap reaches its darkest red. */
+  darkestAt: 160,
 } as const;
 
 export type IssueKind = keyof typeof RULES.points;
@@ -44,6 +49,8 @@ export interface UnitSummary {
   /** Highest issue priority in the apartment, 0 when there are none. */
   priority: number;
   level: Level | null;
+  /** Whole-apartment score for the heatmap: worst issue + a share of the rest (see RULES). */
+  heatScore: number;
   broken: number;
   energyKwh: number;
   oldestInstallYear: number | null;
@@ -105,7 +112,7 @@ export function unitSummaries(devices: SiteDevice[], issues: Issue[]): Map<strin
   const out = new Map<string, UnitSummary>();
   const get = (unit: string) => {
     let s = out.get(unit);
-    if (!s) out.set(unit, (s = { issues: [], priority: 0, level: null, broken: 0, energyKwh: 0, oldestInstallYear: null }));
+    if (!s) out.set(unit, (s = { issues: [], priority: 0, level: null, heatScore: 0, broken: 0, energyKwh: 0, oldestInstallYear: null }));
     return s;
   };
   for (const d of devices) {
@@ -118,6 +125,10 @@ export function unitSummaries(devices: SiteDevice[], issues: Issue[]): Map<strin
     const s = get(i.device.unit_object_name);
     s.issues.push(i);
     if (i.priority > s.priority) { s.priority = i.priority; s.level = i.level; }
+  }
+  for (const s of out.values()) {
+    const total = s.issues.reduce((sum, i) => sum + i.priority, 0);
+    s.heatScore = Math.round(s.priority + RULES.otherIssuesWeight * (total - s.priority));
   }
   return out;
 }
@@ -137,6 +148,29 @@ function ramp(t: number) {
   return `hsl(${hue.toFixed(0)}, 70%, 48%)`; // comma syntax: three.js doesn't parse space-separated hsl()
 }
 
+const DARKEST = "#8f1d1d";
+/** Priority gradient anchored on the level thresholds, so a colour means the same score on
+ *  every site: green at Low, yellow at Medium, orange at High, red at Urgent, then darkening. */
+const PRIORITY_STOPS: [number, string][] = [
+  [0, LEVEL_COLORS.low],
+  [RULES.levels.medium, LEVEL_COLORS.medium],
+  [RULES.levels.high, LEVEL_COLORS.high],
+  [RULES.levels.urgent, LEVEL_COLORS.urgent],
+  [RULES.darkestAt, DARKEST],
+];
+
+const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+/** Colour for an apartment score, blended between the neighbouring stops. */
+export function priorityColor(score: number): string {
+  let i = 1;
+  while (i < PRIORITY_STOPS.length - 1 && score > PRIORITY_STOPS[i]![0]) i++;
+  const [s0, c0] = PRIORITY_STOPS[i - 1]!, [s1, c1] = PRIORITY_STOPS[i]!;
+  const t = Math.min(1, Math.max(0, (score - s0) / (s1 - s0)));
+  const a = hexRgb(c0), b = hexRgb(c1);
+  return `rgb(${a.map((v, k) => Math.round(v + (b[k]! - v) * t)).join(", ")})`;
+}
+
 /** Apartment colours for the heatmap, keyed by apartment object name; null when off. */
 export function heatColors(mode: HeatMode, unitNames: string[], summaries: Map<string, UnitSummary>, now = new Date()): Record<string, string> | null {
   if (mode === "off") return null;
@@ -144,7 +178,7 @@ export function heatColors(mode: HeatMode, unitNames: string[], summaries: Map<s
   if (mode === "priority") {
     for (const u of unitNames) {
       const s = summaries.get(u);
-      colors[u] = s?.level ? LEVEL_COLORS[s.level] : OK_COLOR;
+      colors[u] = s?.issues.length ? priorityColor(s.heatScore) : OK_COLOR;
     }
     return colors;
   }
@@ -160,11 +194,29 @@ export function heatColors(mode: HeatMode, unitNames: string[], summaries: Map<s
   return colors;
 }
 
-export const HEAT_LEGENDS: Record<Exclude<HeatMode, "off">, { label: string; stops: [string, string][] }> = {
+export interface HeatLegend {
+  label: string;
+  /** CSS gradient for the legend bar, with its end labels. */
+  gradient: string;
+  from: string;
+  to: string;
+  /** Optional separate swatch, e.g. apartments with no issues. */
+  extra?: [color: string, label: string];
+}
+
+const cssStops = (stops: [number, string][]) => {
+  const max = stops[stops.length - 1]![0];
+  return `linear-gradient(to right, ${stops.map(([s, c]) => `${c} ${((s / max) * 100).toFixed(0)}%`).join(", ")})`;
+};
+
+export const HEAT_LEGENDS: Record<Exclude<HeatMode, "off">, HeatLegend> = {
   priority: {
-    label: "Worst open issue",
-    stops: [[OK_COLOR, "No issues"], [LEVEL_COLORS.low, "Low"], [LEVEL_COLORS.medium, "Medium"], [LEVEL_COLORS.high, "High"], [LEVEL_COLORS.urgent, "Urgent"]],
+    label: "Apartment priority",
+    gradient: cssStops(PRIORITY_STOPS),
+    from: "Low",
+    to: "Most urgent",
+    extra: [OK_COLOR, "No issues"],
   },
-  energy: { label: "Total device energy (kWh/yr)", stops: [[ramp(0), "Lowest"], [ramp(0.5), ""], [ramp(1), "Highest"]] },
-  age: { label: "Oldest device", stops: [[ramp(0), "Newest"], [ramp(0.5), ""], [ramp(1), "Oldest"]] },
+  energy: { label: "Total device energy (kWh/yr)", gradient: `linear-gradient(to right, ${ramp(0)}, ${ramp(0.5)}, ${ramp(1)})`, from: "Lowest", to: "Highest" },
+  age: { label: "Oldest device", gradient: `linear-gradient(to right, ${ramp(0)}, ${ramp(0.5)}, ${ramp(1)})`, from: "Newest", to: "Oldest" },
 };
