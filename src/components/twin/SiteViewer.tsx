@@ -260,12 +260,18 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     // Calculate the view target position and  to view it from.
     const focused = props.focusUnit ? root.getObjectByName(props.focusUnit) : null; // Focused Object
     const box = new THREE.Box3().setFromObject(focused ?? root); // Box around focused object or root if it's not present.
-    const center = box.getCenter(new THREE.Vector3()); // Center of Box
+    const center = focused ? box.getCenter(new THREE.Vector3()) : c.getTarget(new THREE.Vector3()); // Point to focus on.
     const r = Math.max(8, box.getSize(new THREE.Vector3()).length() * (focused ? 0.9 : 0.6)); // View position radius from object center?
-    
+
+    const currentPos = c.getPosition(new THREE.Vector3());
+    const currentTarget = c.getTarget(new THREE.Vector3());
+    const posTargetVec = new THREE.Vector3(currentPos.x - currentTarget.x, currentPos.y - currentTarget.y, currentPos.z - currentTarget.z).normalize();
+    posTargetVec.multiplyScalar(r);
+
     // Set the view target position of the controls (camera(?)).
     if (props.view === "2d") c.setLookAt(center.x, center.y + r * 1.6, center.z + 0.001, center.x, center.y, center.z, true);
-    else c.setLookAt(center.x + r * 0.7, center.y + r * 0.75, center.z + r * 0.9, center.x, center.y, center.z, true);
+    //else c.setLookAt(center.x + r * 0.7, center.y + r * 0.75, center.z + r * 0.9, center.x, center.y, center.z, true);
+    else c.setLookAt(center.x + posTargetVec.x, center.y + posTargetVec.y, center.z + posTargetVec.z, center.x, center.y, center.z, true);
   }, [root, props.focusUnit, props.view]);
 
   // Detect when a unit/device is clicked?
