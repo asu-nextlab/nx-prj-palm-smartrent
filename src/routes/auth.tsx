@@ -1,9 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+// Lovable's Google sign-in only works on Lovable-hosted domains, so local development
+// against a separate dev database uses email + password instead. Enabled only by
+// VITE_DEV_LOGIN=true in an untracked .env.local, and never in production builds.
+const DEV_LOGIN = import.meta.env.DEV && import.meta.env["VITE_DEV_LOGIN"] === "true";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -49,6 +55,33 @@ function AuthPage() {
           });
           if (r.error) toast.error(String(r.error.message ?? r.error));
         }}>Continue with ASU Google</Button>
+        {DEV_LOGIN && <DevLogin />}
+      </div>
+    </div>
+  );
+}
+
+function DevLogin() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const run = async (mode: "in" | "up"): Promise<void> => {
+    if (!isAsu(email)) { toast.error("Use an @asu.edu email (the database only allows ASU accounts)."); return; }
+    setBusy(true);
+    const { error } = mode === "in"
+      ? await supabase.auth.signInWithPassword({ email, password })
+      : await supabase.auth.signUp({ email, password });
+    setBusy(false);
+    if (error) toast.error(error.message);
+  };
+  return (
+    <div className="mt-6 space-y-2 border-t pt-4">
+      <p className="text-xs font-semibold text-warn">Local dev login (dev database only)</p>
+      <Input type="email" placeholder="you@asu.edu" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Input type="password" placeholder="Password (6+ characters)" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <div className="flex gap-2">
+        <Button variant="secondary" className="flex-1" disabled={busy} onClick={() => run("in")}>Sign in</Button>
+        <Button variant="outline" className="flex-1" disabled={busy} onClick={() => run("up")}>Create account</Button>
       </div>
     </div>
   );

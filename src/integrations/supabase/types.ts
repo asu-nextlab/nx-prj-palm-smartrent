@@ -74,6 +74,7 @@ export type Database = {
           notes: string | null
           object_name: string
           status: string
+          status_since: string
           type: string | null
           unit_id: string
         }
@@ -86,6 +87,7 @@ export type Database = {
           notes?: string | null
           object_name: string
           status?: string
+          status_since?: string
           type?: string | null
           unit_id: string
         }
@@ -98,6 +100,7 @@ export type Database = {
           notes?: string | null
           object_name?: string
           status?: string
+          status_since?: string
           type?: string | null
           unit_id?: string
         }
@@ -117,6 +120,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           created_by_name: string | null
+          elevation: number
           id: string
           kind: string
           lat: number
@@ -125,12 +129,14 @@ export type Database = {
           name: string
           rotation: number
           scale: number
+          tiles_height: number
         }
         Insert: {
           city?: string | null
           created_at?: string
           created_by?: string | null
           created_by_name?: string | null
+          elevation?: number
           id?: string
           kind?: string
           lat?: number
@@ -139,12 +145,14 @@ export type Database = {
           name: string
           rotation?: number
           scale?: number
+          tiles_height?: number
         }
         Update: {
           city?: string | null
           created_at?: string
           created_by?: string | null
           created_by_name?: string | null
+          elevation?: number
           id?: string
           kind?: string
           lat?: number
@@ -153,6 +161,7 @@ export type Database = {
           name?: string
           rotation?: number
           scale?: number
+          tiles_height?: number
         }
         Relationships: []
       }

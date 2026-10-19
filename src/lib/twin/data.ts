@@ -50,6 +50,39 @@ export const devicesQuery = (unitId: string) => queryOptions({
   },
 });
 
+/** Every device on a site, tagged with its apartment's object name, so the 3D view can
+ *  hide DEV_ meshes whose row was deleted and show markers for rows with no mesh. */
+export const siteDevicesQuery = (siteId: string) => queryOptions({
+  queryKey: ["site-devices", siteId],
+  queryFn: async () => {
+    const { data, error } = await supabase.from("devices").select("*, units!inner(site_id, object_name)").eq("units.site_id", siteId);
+    if (error) throw error;
+    return data.map(({ units, ...d }) => ({ ...d, unit_object_name: units.object_name }));
+  },
+});
+export type SiteDevice = Device & { unit_object_name: string };
+
+/** First unused DEV_ name for a new device in an apartment, e.g. DEV_lock or DEV_lock_2. */
+export function nextDeviceObjectName(kind: string, taken: Iterable<string>) {
+  const used = new Set([...taken].map((n) => n.toLowerCase()));
+  const base = `DEV_${kind}`;
+  if (!used.has(base.toLowerCase())) return base;
+  for (let i = 2; ; i++) if (!used.has(`${base}_${i}`.toLowerCase())) return `${base}_${i}`;
+}
+
+export async function addDevice(row: Database["public"]["Tables"]["devices"]["Insert"]) {
+  const { data, error } = await supabase.from("devices").insert(row).select().single();
+  if (error) throw error;
+  return data;
+}
+
+/** Deletes the device row only; the uploaded GLB is never modified (its mesh is hidden instead). */
+export async function deleteDevice(id: string) {
+  const { data, error } = await supabase.from("devices").delete().eq("id", id).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("Device wasn't deleted. It may already be gone, or you don't have access.");
+}
+
 export const meQuery = queryOptions({
   queryKey: ["me"],
   queryFn: async () => (await supabase.auth.getUser()).data.user?.id ?? null,
