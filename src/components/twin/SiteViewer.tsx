@@ -249,6 +249,7 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
   // camera
   useEffect(() => {
     const c = controls.current; if (!c) return;
+    const useSmoothCam = false;
 
     // Only re-frame when the user changes focus or view — not when the model is rebuilt after a data refresh (e.g. a nudge).
     const key = `${props.focusUnit}|${props.view}`;
@@ -269,9 +270,9 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     posTargetVec.multiplyScalar(r);
 
     // Set the view target position of the controls (camera(?)).
-    if (props.view === "2d") c.setLookAt(center.x, center.y + r * 1.6, center.z + 0.001, center.x, center.y, center.z, true);
+    if (props.view === "2d") c.setLookAt(center.x, center.y + r * 1.6, center.z + 0.001, center.x, center.y, center.z, useSmoothCam);
     //else c.setLookAt(center.x + r * 0.7, center.y + r * 0.75, center.z + r * 0.9, center.x, center.y, center.z, true);
-    else c.setLookAt(center.x + posTargetVec.x, center.y + posTargetVec.y, center.z + posTargetVec.z, center.x, center.y, center.z, true);
+    else c.setLookAt(center.x + posTargetVec.x, center.y + posTargetVec.y, center.z + posTargetVec.z, center.x, center.y, center.z, useSmoothCam);
   }, [root, props.focusUnit, props.view]);
 
   // Detect when a unit/device is clicked?
