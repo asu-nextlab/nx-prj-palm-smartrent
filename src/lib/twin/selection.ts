@@ -41,6 +41,35 @@ export function clickableMeshes(root: THREE.Object3D, focusUnit: string | null):
   return meshes;
 }
 
+/** The focused apartment's own walls, floors and furniture. They never take a pick themselves,
+ *  but a click that lands on them stays in the apartment instead of passing through to the
+ *  apartment below (or the ground). Call after clickableMeshes, which resets the pick layer. */
+export function focusedBlockers(root: THREE.Object3D, focusUnit: string | null): THREE.Object3D[] {
+  const focused = focusUnit ? root.getObjectByName(focusUnit) : undefined;
+  if (!focused || !isVisible(focused)) return [];
+  const meshes: THREE.Object3D[] = [];
+  focused.traverse((object) => {
+    if (!(object as THREE.Mesh).isMesh || !isVisible(object) || tagsOf(object).device) return;
+    object.layers.enable(PICK_LAYER);
+    meshes.push(object);
+  });
+  return meshes;
+}
+
+/** What a click selects, from the nearest clickable hit and the nearest hit on the focused
+ *  apartment's own geometry. Its devices always win; otherwise a closer hit on the apartment
+ *  itself keeps it selected and clears the device. */
+export function resolvePick(
+  hit: { object: THREE.Object3D; distance: number } | undefined,
+  blocker: { distance: number } | undefined,
+  focusUnit: string | null,
+): { unit: string | null; device: string | null } {
+  const tags = hit ? tagsOf(hit.object) : { unit: null, device: null };
+  if (focusUnit && tags.unit === focusUnit && tags.device) return tags;
+  if (focusUnit && blocker && (!hit || blocker.distance <= hit.distance)) return { unit: focusUnit, device: null };
+  return tags;
+}
+
 export interface PointerStart { x: number; y: number; time: number; id: number; distance: number }
 
 export function isClick(start: PointerStart | null, event: { clientX: number; clientY: number; timeStamp: number; pointerId: number }): boolean {

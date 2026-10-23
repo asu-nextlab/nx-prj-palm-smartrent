@@ -111,7 +111,7 @@ function SitePage() {
             {floors.length > 0 && (
               <nav aria-label="Floor levels" className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col gap-1 rounded-lg bg-card/95 p-1 shadow-sm ring-1 ring-border">
                 {floors.map((f) => (
-                  <button key={f} aria-pressed={currentFloor === f} onClick={() => { setFloor(f); if (focusedUnit && focusedUnit.floor !== f) { setUnit(null); setDevice(null); } }}
+                  <button key={f} aria-pressed={currentFloor === f} onClick={() => { setFloor(f); if (focusedUnit && focusedUnit.floor > f) { setUnit(null); setDevice(null); } }}
                     className={cn("h-8 w-10 rounded-md text-xs font-medium transition-colors", currentFloor === f ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                     {f}
                   </button>

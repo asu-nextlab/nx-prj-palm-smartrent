@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { buildInterior, buildSampleSite, type SampleBuilding, type SampleUnit } from "@/lib/twin/build";
 import { layoutOf } from "@/lib/twin/templates";
 import { isApartment, isDevice } from "@/lib/twin/ingest";
-import { clickableMeshes, isClick, isRoof, PICK_LAYER, tagsOf, updateRoofs, type PointerStart } from "@/lib/twin/selection";
+import { clickableMeshes, focusedBlockers, isClick, isRoof, PICK_LAYER, resolvePick, updateRoofs, type PointerStart } from "@/lib/twin/selection";
 import { googleTiles, osmGround } from "@/lib/twin/osm";
 import { City3D } from "./City3D";
 import { apartmentFocusPosition } from "@/lib/twin/camera-focus";
@@ -118,8 +118,9 @@ function Selection({ root, props }: { root: THREE.Object3D; props: ViewerProps }
       root.updateWorldMatrix(true, true);
       raycaster.setFromCamera(new THREE.Vector2((e.clientX - rect.left) / rect.width * 2 - 1, -(e.clientY - rect.top) / rect.height * 2 + 1), camera);
       const hit = raycaster.intersectObjects(clickableMeshes(root, props.focusUnit), false)[0];
-      if (hit) { const { unit, device } = tagsOf(hit.object); props.onPick(unit, device); }
-      else props.onPick(null, null);
+      const blocker = raycaster.intersectObjects(focusedBlockers(root, props.focusUnit), false)[0];
+      const { unit, device } = resolvePick(hit, blocker, props.focusUnit);
+      props.onPick(unit, device);
     };
     const cancel = (e: PointerEvent) => { start = null; pointers.delete(e.pointerId); };
     // Double-click anywhere in the view goes back to the whole community.
@@ -309,6 +310,9 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     // Only re-frame when the user changes focus or view — not when the model is rebuilt after a data refresh (e.g. a nudge).
     const key = `${props.focusUnit}|${props.view}`;
     if (camKey.current === key) return;
+    // Zooming back out to the community keeps the angle the user was looking from; the default
+    // angle is only used on first load and when switching from the 2D plan.
+    const keepAngle = camKey.current !== null && camKey.current.endsWith(`|${props.view}`);
     camKey.current = key;
     root.updateMatrixWorld(true);
     const focused = props.focusUnit ? root.getObjectByName(props.focusUnit) : null;
@@ -317,6 +321,10 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     const r = Math.max(8, box.getSize(new THREE.Vector3()).length() * (focused ? 0.9 : 0.6));
     if (props.view === "2d") c.setLookAt(center.x, center.y + r * 1.6, center.z + 0.001, center.x, center.y, center.z, true);
     else if (focused) {
+      const position = apartmentFocusPosition(c.getPosition(new THREE.Vector3(), false), c.getTarget(new THREE.Vector3(), false), center, r * Math.hypot(0.7, 0.75, 0.9));
+      c.setLookAt(position.x, position.y, position.z, center.x, center.y, center.z, true);
+    }
+    else if (keepAngle) {
       const position = apartmentFocusPosition(c.getPosition(new THREE.Vector3(), false), c.getTarget(new THREE.Vector3(), false), center, r * Math.hypot(0.7, 0.75, 0.9));
       c.setLookAt(position.x, position.y, position.z, center.x, center.y, center.z, true);
     }

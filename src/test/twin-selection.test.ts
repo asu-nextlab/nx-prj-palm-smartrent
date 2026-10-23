@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { clickableMeshes, hiddenForFloor, isClick, isVisible, PICK_LAYER, tagsOf, updateRoofs } from "@/lib/twin/selection";
+import { clickableMeshes, focusedBlockers, hiddenForFloor, isClick, isVisible, PICK_LAYER, resolvePick, tagsOf, updateRoofs } from "@/lib/twin/selection";
 
 function apartment(name: string) {
   const group = new THREE.Group();
@@ -96,5 +96,43 @@ describe("Viewer selection rules", () => {
     expect(tagsOf(hit.object)).toEqual({ unit: "APT_101", device: "DEV_tv" });
     device.visible = false;
     expect(clickableMeshes(root, "APT_101")).toEqual([]);
+  });
+
+  describe("clicks inside a focused apartment", () => {
+    // APT_201 sits on top of APT_101; APT_201 has a floor slab and a thermostat.
+    function stack() {
+      const root = new THREE.Group();
+      const lower = apartment("APT_101"), upper = apartment("APT_201");
+      upper.group.position.y = 3;
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 4)); slab.name = "Floor"; slab.position.y = -1;
+      const device = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3)); device.name = "DEV_thermostat"; device.position.set(1.5, 0, 0);
+      upper.group.add(slab, device);
+      upper.mesh.visible = false; // the shell is hidden while focused
+      root.add(lower.group, upper.group); root.updateMatrixWorld(true);
+      return root;
+    }
+    const pick = (root: THREE.Object3D, x: number) => {
+      const ray = new THREE.Raycaster(new THREE.Vector3(x, 20, 0), new THREE.Vector3(0, -1, 0));
+      ray.layers.set(PICK_LAYER);
+      const hit = ray.intersectObjects(clickableMeshes(root, "APT_201"), false)[0];
+      const blocker = ray.intersectObjects(focusedBlockers(root, "APT_201"), false)[0];
+      return resolvePick(hit, blocker, "APT_201");
+    };
+
+    it("stays in the apartment when its floor is clicked, instead of picking the one below", () => {
+      expect(pick(stack(), 0)).toEqual({ unit: "APT_201", device: null });
+    });
+
+    it("still selects its devices", () => {
+      expect(pick(stack(), 1.5)).toEqual({ unit: "APT_201", device: "DEV_thermostat" });
+    });
+
+    it("picks a neighbouring apartment that is closer than the focused one", () => {
+      expect(resolvePick({ object: apartment("APT_202").mesh, distance: 5 }, { distance: 9 }, "APT_201")).toEqual({ unit: "APT_202", device: null });
+    });
+
+    it("exits when nothing is hit", () => {
+      expect(resolvePick(undefined, undefined, "APT_201")).toEqual({ unit: null, device: null });
+    });
   });
 });
