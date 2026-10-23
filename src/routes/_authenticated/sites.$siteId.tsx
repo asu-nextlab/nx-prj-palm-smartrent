@@ -101,7 +101,7 @@ function SitePage() {
             </Suspense>
             <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-wrap items-start gap-2 [&>*]:pointer-events-auto">
               <Seg value={view} onChange={(v) => setView(v as "2d" | "3d")} options={[["2d", "2D plan"], ["3d", "3D explore"]]} />
-              <Seg value={ground} onChange={(v) => setGround(v as GroundMode)} options={[["map", "Street map"], ["satellite", "Google satellite"], ["roadmap", "Google map"], ["city3d", "3D city"], ["plane", "Simple plane"]]} />
+              <Seg value={ground} onChange={(v) => setGround(v as GroundMode)} options={[["map", "Street map"], ["satellite", "Google satellite"], ["city3d", "3D city"], ["plane", "Simple plane"]]} />
               {ground === "city3d" && <Button size="sm" variant="secondary" className="h-8 shadow-sm" aria-pressed={clip} onClick={() => setClip(!clip)}>{clip ? "Existing buildings: cut out" : "Existing buildings: shown"}</Button>}
               {needsGoogle && google.isLoading && <span className="rounded-md bg-card/95 px-2 py-1 text-xs text-muted-foreground ring-1 ring-border">Loading Google imagery…</span>}
               {needsGoogle && google.error && <span className="rounded-md bg-card/95 px-2 py-1 text-xs text-destructive ring-1 ring-border">Google imagery unavailable: {(google.error as Error).message.slice(0, 120)}</span>}
@@ -135,6 +135,7 @@ function SitePage() {
               )}
               <Seg value={heatMode} onChange={(v) => setHeatMode(v as HeatMode)} options={[["off", "Heatmap off"], ["priority", "Priority"], ["energy", "Energy"], ["age", "Device age"]]} />
             </div>
+            {unit && <span className="pointer-events-none absolute bottom-8 right-2 rounded-md bg-card/95 px-2 py-1 text-xs font-medium text-muted-foreground shadow-sm ring-1 ring-border">Double-click to exit</span>}
             {needsGoogle && <span className="absolute bottom-2 right-2 rounded bg-card/90 px-2 py-0.5 text-[0.65rem] font-medium text-muted-foreground">Google · Map data ©{new Date().getFullYear()} Google</span>}
             {ground === "map" && <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" className="absolute bottom-2 right-2 rounded bg-card/90 px-2 py-0.5 text-[0.65rem] text-muted-foreground">© OpenStreetMap contributors</a>}
           </div>

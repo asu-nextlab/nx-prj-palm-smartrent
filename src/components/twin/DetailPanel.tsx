@@ -74,7 +74,7 @@ function DeviceEditor({ device, onDeleted, onClose }: { device: Device; onDelete
     ]);
   };
   return (
-    <div ref={box} className="mt-3 space-y-2 rounded-lg border border-warn/50 bg-card p-3">
+    <div ref={box} className={cn("mt-3 space-y-2 rounded-lg border-2 bg-card p-3", device.status === "online" ? "border-success/60" : "border-warn/60")}>
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs text-muted-foreground">{d.object_name}</span>
         {device.status !== "online" && device.status_since && (
@@ -209,8 +209,7 @@ export function DetailPanel({ unit, device, modelDevices, issues, onSelectDevice
     <div className="flex h-full flex-col overflow-auto p-4">
       <div className="flex items-start justify-between">
         <div>
-          <p className="eyebrow">Apartment</p>
-          <h2 className="text-2xl font-semibold">{unit.apt_number}</h2>
+          <h2 className="text-3xl font-semibold">Apartment {unit.apt_number}</h2>
           <p className="text-sm text-muted-foreground">Floor {unit.floor}{unit.layout ? ` · ${layoutOf(unit.layout).name}` : ""}</p>
         </div>
         <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground">Close</button>
@@ -261,7 +260,6 @@ export function DetailPanel({ unit, device, modelDevices, issues, onSelectDevice
           onAdded={(obj) => { setAdding(false); onSelectDevice(obj); }} onCancel={() => setAdding(false)} />
       )}
       {current && !adding && <DeviceEditor device={current} onDeleted={() => onSelectDevice(null)} onClose={() => onSelectDevice(null)} />}
-      <p className="mt-auto pt-6 text-xs text-muted-foreground">Click devices in the 3D view or in this list. Edit apartment details in the table below.</p>
     </div>
   );
 }

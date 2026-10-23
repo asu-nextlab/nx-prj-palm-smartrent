@@ -122,12 +122,16 @@ function Selection({ root, props }: { root: THREE.Object3D; props: ViewerProps }
       else props.onPick(null, null);
     };
     const cancel = (e: PointerEvent) => { start = null; pointers.delete(e.pointerId); };
+    // Double-click anywhere in the view goes back to the whole community.
+    const dbl = () => { if (props.focusUnit) props.onPick(null, null); };
     canvas.addEventListener("pointerdown", down);
+    canvas.addEventListener("dblclick", dbl);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
     return () => {
       canvas.removeEventListener("pointerdown", down);
+      canvas.removeEventListener("dblclick", dbl);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
@@ -293,7 +297,10 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     root.updateMatrixWorld(true);
     const focused = props.focusUnit ? root.getObjectByName(props.focusUnit) ?? null : null;
     const sel = (props.focusDevice && focused?.getObjectByName(props.focusDevice)) || focused;
-    setHelper(sel ? new THREE.Box3Helper(new THREE.Box3().setFromObject(sel).expandByScalar(0.08), new THREE.Color(props.focusDevice ? "#ff8a3d" : "#32bdcd")) : null);
+    // Devices are outlined in their status colour (as in the panel); apartments in teal.
+    const status = props.focusDevice ? props.devices?.find((d) => d.unit_object_name === props.focusUnit && d.object_name === props.focusDevice)?.status : null;
+    const color = !props.focusDevice ? "#32bdcd" : status === "online" ? "#3fae7a" : "#ff8a3d";
+    setHelper(sel ? new THREE.Box3Helper(new THREE.Box3().setFromObject(sel).expandByScalar(0.08), new THREE.Color(color)) : null);
   }, [root, props.focusUnit, props.focusDevice, props.hiddenUnits, props.devices]);
 
   // camera
