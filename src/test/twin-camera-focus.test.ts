@@ -1,6 +1,6 @@
 import { Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { apartmentFocusPosition } from "@/lib/twin/camera-focus";
+import { apartmentFocusPosition, deviceFocusDistance } from "@/lib/twin/camera-focus";
 
 describe("Apartment camera focus", () => {
   it("preserves the current orbit direction and uses the existing focus distance", () => {
@@ -19,5 +19,11 @@ describe("Apartment camera focus", () => {
   it("keeps a straight-down camera directly above the selected apartment", () => {
     const result = apartmentFocusPosition(new Vector3(12, 90, -7), new Vector3(12, 0, -7), new Vector3(30, 4, 18), 24);
     expect(result.toArray()).toEqual([30, 28, 18]);
+  });
+
+  it("zooms in on a selected device, but not closer than 4 m or as far as the apartment view", () => {
+    expect(deviceFocusDistance(0.2, 15)).toBe(4);
+    expect(deviceFocusDistance(1.6, 15)).toBeCloseTo(6.4);
+    expect(deviceFocusDistance(3, 15)).toBe(9);
   });
 });

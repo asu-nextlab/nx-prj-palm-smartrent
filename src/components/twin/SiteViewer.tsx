@@ -8,7 +8,7 @@ import { isApartment, isDevice } from "@/lib/twin/ingest";
 import { clickableMeshes, focusedBlockers, isClick, isRoof, PICK_LAYER, resolvePick, updateRoofs, type PointerStart } from "@/lib/twin/selection";
 import { googleTiles, osmGround } from "@/lib/twin/osm";
 import { City3D } from "./City3D";
-import { apartmentFocusPosition } from "@/lib/twin/camera-focus";
+import { apartmentFocusPosition, deviceFocusDistance } from "@/lib/twin/camera-focus";
 import { compassRotationDegrees } from "@/lib/twin/compass";
 import { groundPanBounds, mapGroundFootprint, SIMPLE_GROUND_RADIUS } from "@/lib/twin/ground-bounds";
 import { fitSiteShadow, SITE_SHADOW_BIAS, SITE_SHADOW_MAP_SIZE, SITE_SHADOW_NORMAL_BIAS } from "@/lib/twin/shadows";
@@ -317,7 +317,7 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
   useEffect(() => {
     const c = controls.current; if (!c) return;
     // Only re-frame when the user changes focus or view — not when the model is rebuilt after a data refresh (e.g. a nudge).
-    const key = `${props.focusUnit}|${props.view}`;
+    const key = `${props.focusUnit}|${props.focusDevice}|${props.view}`;
     if (camKey.current === key) return;
     // Zooming back out to the community keeps the angle the user was looking from; the default
     // angle is only used on first load and when switching from the 2D plan.
@@ -328,7 +328,19 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     const box = new THREE.Box3().setFromObject(focused ?? root);
     const center = box.getCenter(new THREE.Vector3());
     const r = Math.max(8, box.getSize(new THREE.Vector3()).length() * (focused ? 0.9 : 0.6));
-    if (props.view === "2d") c.setLookAt(center.x, center.y + r * 1.6, center.z + 0.001, center.x, center.y, center.z, true);
+    // A selected device gets a closer look, from the same direction as the apartment view.
+    const device = focused && props.focusDevice ? focused.getObjectByName(props.focusDevice) : undefined;
+    if (device) {
+      const deviceBox = new THREE.Box3().setFromObject(device);
+      const at = deviceBox.getCenter(new THREE.Vector3());
+      const d = deviceFocusDistance(deviceBox.getSize(new THREE.Vector3()).length(), r * Math.hypot(0.7, 0.75, 0.9));
+      if (props.view === "2d") c.setLookAt(at.x, at.y + d, at.z + 0.001, at.x, at.y, at.z, true);
+      else {
+        const position = apartmentFocusPosition(c.getPosition(new THREE.Vector3(), false), c.getTarget(new THREE.Vector3(), false), at, d);
+        c.setLookAt(position.x, position.y, position.z, at.x, at.y, at.z, true);
+      }
+    }
+    else if (props.view === "2d") c.setLookAt(center.x, center.y + r * 1.6, center.z + 0.001, center.x, center.y, center.z, true);
     else if (focused) {
       const position = apartmentFocusPosition(c.getPosition(new THREE.Vector3(), false), c.getTarget(new THREE.Vector3(), false), center, r * Math.hypot(0.7, 0.75, 0.9));
       c.setLookAt(position.x, position.y, position.z, center.x, center.y, center.z, true);
@@ -341,7 +353,7 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     // Orbiting adds up the azimuth (e.g. 200°) while setLookAt aims in -180°..180°, so the
     // transition would swing the long way round (a 360° spin). Take the shortest way instead.
     c.normalizeRotations();
-  }, [root, props.focusUnit, props.view]);
+  }, [root, props.focusUnit, props.focusDevice, props.view]);
 
   return h(Fragment, null,
     h(SiteLight, { root, props }),
