@@ -162,10 +162,19 @@ function Ground({ lat, lon, mode, google }: { lat: number; lon: number; mode: Gr
 
 // Scene graph elements are created without JSX: the dev-only source tagger adds a
 // "data-tsd-source" prop to every JSX element, which three.js objects can't accept.
+const FOG = { near: { start: 260, end: 700 }, far: { start: 1500, end: 6000 } };
 function SceneSetup({ far }: { far: boolean }) {
+  const fog = far ? FOG.far : FOG.near;
+  // The camera must draw past the fog's end, so distant city tiles fade out instead of being
+  // cut off by the far plane when zoomed all the way out (maxDistance is 3000 in 3D city).
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    camera.far = Math.max(3000, fog.end * 1.25);
+    camera.updateProjectionMatrix();
+  }, [camera, fog.end]);
   return h(Fragment, null,
     h("color", { attach: "background", args: ["#e9eef0"] }),
-    h("fog", { attach: "fog", args: ["#e9eef0", far ? 1500 : 260, far ? 6000 : 700] }),
+    h("fog", { attach: "fog", args: ["#e9eef0", fog.start, fog.end] }),
     h("hemisphereLight", { args: ["#ffffff", "#c9c2b4", 0.7] }),
     h(Environment, { resolution: 64 },
       h(Lightformer, { intensity: 2, position: [0, 5, 0], scale: [10, 10, 1] }),
@@ -329,6 +338,9 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
       c.setLookAt(position.x, position.y, position.z, center.x, center.y, center.z, true);
     }
     else c.setLookAt(center.x + r * 0.7, center.y + r * 0.75, center.z + r * 0.9, center.x, center.y, center.z, true);
+    // Orbiting adds up the azimuth (e.g. 200°) while setLookAt aims in -180°..180°, so the
+    // transition would swing the long way round (a 360° spin). Take the shortest way instead.
+    c.normalizeRotations();
   }, [root, props.focusUnit, props.view]);
 
   return h(Fragment, null,
