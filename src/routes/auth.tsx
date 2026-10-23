@@ -18,6 +18,8 @@ export const Route = createFileRoute("/auth")({
       { name: "description", content: "Sign in with your ASU Google account to manage SmartRent digital twin sites." },
       { property: "og:title", content: "Sign in — SmartRent Digital Twin" },
       { property: "og:description", content: "ASU team access to SmartRent digital twin sites." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: AuthPage,

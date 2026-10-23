@@ -1,12 +1,17 @@
-import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Environment, Lightformer, useGLTF } from "@react-three/drei";
 import { createElement as h, Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { buildInterior, buildSampleSite, type SampleBuilding, type SampleUnit } from "@/lib/twin/build";
 import { layoutOf } from "@/lib/twin/templates";
 import { isApartment, isDevice } from "@/lib/twin/ingest";
+import { clickableMeshes, isClick, isRoof, PICK_LAYER, tagsOf, updateRoofs, type PointerStart } from "@/lib/twin/selection";
 import { googleTiles, osmGround } from "@/lib/twin/osm";
 import { City3D } from "./City3D";
+import { apartmentFocusPosition } from "@/lib/twin/camera-focus";
+import { compassRotationDegrees } from "@/lib/twin/compass";
+import { groundPanBounds, mapGroundFootprint, SIMPLE_GROUND_RADIUS } from "@/lib/twin/ground-bounds";
+import { fitSiteShadow, SITE_SHADOW_BIAS, SITE_SHADOW_MAP_SIZE, SITE_SHADOW_NORMAL_BIAS } from "@/lib/twin/shadows";
 
 export type GroundMode = "map" | "satellite" | "roadmap" | "city3d" | "plane";
 export interface GoogleTiles { key: string; sessions: { satellite: string; roadmap: string } }
@@ -88,14 +93,47 @@ function deviceMarker(apt: THREE.Object3D, aptBox: THREE.Box3, objectName: strin
   return m;
 }
 
-function findTagged(o: THREE.Object3D | null) {
-  let device: string | null = null, unit: string | null = null;
-  while (o) {
-    if (!device && isDevice(o)) device = o.name;
-    if (isApartment(o)) { unit = o.name; break; }
-    o = o.parent;
-  }
-  return { unit, device };
+function Selection({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
+  const { gl, camera } = useThree();
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const raycaster = new THREE.Raycaster();
+    raycaster.layers.set(PICK_LAYER);
+    let start: PointerStart | null = null;
+    const pointers = new Set<number>();
+    const down = (e: PointerEvent) => {
+      pointers.add(e.pointerId);
+      start = pointers.size === 1 && e.button === 0
+        ? { x: e.clientX, y: e.clientY, time: e.timeStamp, id: e.pointerId, distance: 0 } : null;
+    };
+    const move = (e: PointerEvent) => {
+      if (start?.id === e.pointerId) start.distance = Math.max(start.distance, Math.hypot(e.clientX - start.x, e.clientY - start.y));
+    };
+    const up = (e: PointerEvent) => {
+      const click = isClick(start, e);
+      start = null;
+      pointers.delete(e.pointerId);
+      if (!click || e.target !== canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      root.updateWorldMatrix(true, true);
+      raycaster.setFromCamera(new THREE.Vector2((e.clientX - rect.left) / rect.width * 2 - 1, -(e.clientY - rect.top) / rect.height * 2 + 1), camera);
+      const hit = raycaster.intersectObjects(clickableMeshes(root, props.focusUnit), false)[0];
+      if (hit) { const { unit, device } = tagsOf(hit.object); props.onPick(unit, device); }
+      else props.onPick(null, null);
+    };
+    const cancel = (e: PointerEvent) => { start = null; pointers.delete(e.pointerId); };
+    canvas.addEventListener("pointerdown", down);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    return () => {
+      canvas.removeEventListener("pointerdown", down);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+    };
+  }, [gl, camera, root, props.focusUnit, props.onPick]);
+  return null;
 }
 
 function Ground({ lat, lon, mode, google }: { lat: number; lon: number; mode: GroundMode; google?: GoogleTiles | null }) {
@@ -109,7 +147,7 @@ function Ground({ lat, lon, mode, google }: { lat: number; lon: number; mode: Gr
   useEffect(() => () => g?.tex.dispose(), [g]);
   if (!g) {
     return h("mesh", { key: "plane", "rotation-x": -Math.PI / 2, receiveShadow: true },
-      h("circleGeometry", { args: [220, 64] }),
+      h("circleGeometry", { args: [SIMPLE_GROUND_RADIUS, 64] }),
       h("meshStandardMaterial", { color: "#dfe6dc", roughness: 1 }));
   }
   return h("mesh", { key: `tiles-${mode}`, "rotation-x": -Math.PI / 2, position: [g.offset[0], -0.02, g.offset[1]], receiveShadow: true },
@@ -124,11 +162,21 @@ function SceneSetup({ far }: { far: boolean }) {
     h("color", { attach: "background", args: ["#e9eef0"] }),
     h("fog", { attach: "fog", args: ["#e9eef0", far ? 1500 : 260, far ? 6000 : 700] }),
     h("hemisphereLight", { args: ["#ffffff", "#c9c2b4", 0.7] }),
-    h("directionalLight", { position: [60, 90, 40], intensity: 1.6, castShadow: true, "shadow-mapSize": [2048, 2048],
-      "shadow-camera-left": -120, "shadow-camera-right": 120, "shadow-camera-top": 120, "shadow-camera-bottom": -120 }),
     h(Environment, { resolution: 64 },
       h(Lightformer, { intensity: 2, position: [0, 5, 0], scale: [10, 10, 1] }),
       h(Lightformer, { intensity: 1, color: "#bde", position: [-5, 1, -1], rotation: [0, Math.PI / 2, 0], scale: [20, 1, 1] })));
+}
+
+function SiteLight({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
+  const light = useRef<THREE.DirectionalLight>(null);
+  useEffect(() => {
+    if (light.current) fitSiteShadow(light.current, root);
+  }, [root, props.rotation, props.scale, props.elevation, props.ground, props.focusUnit]);
+  return h("directionalLight", {
+    ref: light, position: [60, 90, 40], intensity: 1.6, castShadow: true,
+    "shadow-normalBias": SITE_SHADOW_NORMAL_BIAS, "shadow-bias": SITE_SHADOW_BIAS,
+    "shadow-mapSize": [SITE_SHADOW_MAP_SIZE, SITE_SHADOW_MAP_SIZE],
+  });
 }
 
 function GlbRoot({ url, children }: { url: string; children: (root: THREE.Object3D) => React.ReactNode }) {
@@ -144,6 +192,17 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
   const isSample = !props.glbUrl;
   const camKey = useRef<string | null>(null);
 
+  useEffect(() => {
+    const c = controls.current;
+    if (!c) return;
+    const tiled = props.ground === "map" || props.ground === "city3d" || ((props.ground === "satellite" || props.ground === "roadmap") && !!props.google);
+    const footprint = tiled ? mapGroundFootprint(props.lat, props.lon) : { size: SIMPLE_GROUND_RADIUS * 2, offset: [0, 0] as [number, number] };
+    // CameraControls clamps every truck/pan update, not just this initial target.
+    // Only the target is enclosed: orbit rotation and zoom remain unrestricted.
+    c.setBoundary(groundPanBounds(footprint.size, footprint.offset));
+    c.boundaryEnclosesCamera = false;
+  }, [props.lat, props.lon, props.ground, props.google]);
+
   // visibility / interior management
   useEffect(() => {
     root.updateMatrixWorld(true);
@@ -152,7 +211,6 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     const boxOf = (o: THREE.Object3D) => new THREE.Box3().setFromObject(o);
     const focused = apts.find((a) => a.name === props.focusUnit) ?? null;
     const hidden = new Set(props.hiddenUnits ?? []);
-    root.traverse((o) => { if (o.userData["roof"] || /roof/i.test(o.name)) o.visible = !focused && !props.cutaway && hidden.size === 0; });
     for (const a of apts) {
       a.visible = !hidden.has(a.name);
       a.children.forEach((c) => { if (c.userData["shell"] || /^SHELL/i.test(c.name) || /^Window/.test(c.name)) c.visible = true; });
@@ -163,10 +221,17 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
       if (isSample && !focused.getObjectByName("INTERIOR")) focused.add(buildInterior(layoutOf(focused.userData["layout"])));
       const int = focused.getObjectByName("INTERIOR"); if (int) int.visible = true;
       focused.children.forEach((c) => { if (c.userData["shell"] || /^SHELL/i.test(c.name) || /^Window/.test(c.name)) c.visible = false; });
+      const focusedFloor = props.units.find((u) => u.object_name === focused.name)?.floor;
       const fb = boxOf(focused);
-      for (const a of apts) if (a !== focused && boxOf(a).min.y > fb.min.y + 0.5) a.visible = false;
+      for (const a of apts) {
+        const level = props.units.find((u) => u.object_name === a.name)?.floor;
+        if (a !== focused && (level !== undefined && focusedFloor !== undefined ? level > focusedFloor : boxOf(a).min.y > fb.min.y + 0.5)) a.visible = false;
+      }
     }
-  }, [root, props.focusUnit, props.focusDevice, isSample, props.hiddenUnits, props.cutaway]);
+    updateRoofs(root, focused);
+    // A picked floor is a cutaway: hide roofs even when nothing above it is hidden (top floor).
+    if (props.cutaway) root.traverse((o) => { if (isRoof(o)) o.visible = false; });
+  }, [root, props.focusUnit, props.focusDevice, isSample, props.hiddenUnits, props.units, props.cutaway]);
 
   // Report which DEV_ objects the model has, so the panel can offer them when adding a device.
   const { onModelDevices } = props;
@@ -244,19 +309,19 @@ function Model({ root, props, target }: { root: THREE.Object3D; props: ViewerPro
     const center = box.getCenter(new THREE.Vector3());
     const r = Math.max(8, box.getSize(new THREE.Vector3()).length() * (focused ? 0.9 : 0.6));
     if (props.view === "2d") c.setLookAt(center.x, center.y + r * 1.6, center.z + 0.001, center.x, center.y, center.z, true);
+    else if (focused) {
+      const position = apartmentFocusPosition(c.getPosition(new THREE.Vector3(), false), c.getTarget(new THREE.Vector3(), false), center, r * Math.hypot(0.7, 0.75, 0.9));
+      c.setLookAt(position.x, position.y, position.z, center.x, center.y, center.z, true);
+    }
     else c.setLookAt(center.x + r * 0.7, center.y + r * 0.75, center.z + r * 0.9, center.x, center.y, center.z, true);
   }, [root, props.focusUnit, props.view]);
 
-  const onClick = (e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation();
-    const { unit, device } = findTagged(e.object);
-    if (unit) props.onPick(unit, device);
-  };
-
   return h(Fragment, null,
+    h(SiteLight, { root, props }),
+    h(Selection, { root, props }),
     h(CameraControls, { ref: controls, makeDefault: true, maxPolarAngle: props.view === "2d" ? 0.01 : Math.PI / 2.1, minDistance: 2, maxDistance: props.ground === "city3d" ? 3000 : 600 }),
     h("group", { "rotation-y": THREE.MathUtils.degToRad(props.rotation), scale: props.scale, "position-y": props.ground === "city3d" ? props.elevation ?? 0 : 0 },
-      h("primitive", { object: root, onClick })),
+      h("primitive", { object: root })),
     helper ? h("primitive", { object: helper }) : null);
 }
 
@@ -267,14 +332,15 @@ function SampleRoot({ props, target }: { props: ViewerProps; target: React.Mutab
 
 // Rotates the DOM compass so its N always points to world north (-Z) on screen.
 function CompassTracker({ el }: { el: React.RefObject<HTMLDivElement | null> }) {
-  const dir = useMemo(() => new THREE.Vector3(), []);
+  const orientation = useMemo(() => new THREE.Quaternion(), []);
+  // CameraControls runs at priority -1. Read its final orientation every frame
+  // at priority 0, including plan changes, damping and focus transitions.
   useFrame(({ camera }) => {
     if (!el.current) return;
-    camera.getWorldDirection(dir);
-    const flat = Math.hypot(dir.x, dir.z);
-    const deg = flat < 1e-4 ? 0 : -Math.atan2(dir.x, -dir.z) * 180 / Math.PI;
+    camera.getWorldQuaternion(orientation);
+    const deg = compassRotationDegrees(orientation);
     el.current.style.transform = `rotate(${deg}deg)`;
-  });
+  }, 0);
   return null;
 }
 
@@ -284,11 +350,11 @@ export default function SiteViewer(props: ViewerProps) {
   const city = props.ground === "city3d" && props.google;
   return (
     <div className="relative h-full w-full">
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.1, far: 3000 }} onPointerMissed={() => props.onPick(null, null)}>
+      <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.1, far: 3000 }}>
         {h(SceneSetup, { far: !!city })}
         {h(CompassTracker, { el: compass })}
         {city
-          ? h(City3D, { key: `${props.lat},${props.lon}`, lat: props.lat, lon: props.lon, apiKey: props.google!.key, target, clip: props.clip ?? true })
+          ? h(City3D, { key: `${props.lat},${props.lon}`, lat: props.lat, lon: props.lon, apiKey: city.key, target, clip: props.clip ?? true })
           : h(Ground, { lat: props.lat, lon: props.lon, mode: props.ground, google: props.google ?? null })}
         {h(Suspense, { fallback: null },
           props.glbUrl

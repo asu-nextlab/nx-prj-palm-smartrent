@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { hiddenForFloor } from "@/lib/twin/selection";
 
 const SiteViewer = lazy(() => import("@/components/twin/SiteViewer"));
 
@@ -26,6 +27,8 @@ export const Route = createFileRoute("/_authenticated/sites/$siteId")({
       { name: "description", content: "Explore a SmartRent community in 2D and 3D, edit apartments and inspect devices." },
       { property: "og:title", content: "Site explorer — SmartRent Digital Twin" },
       { property: "og:description", content: "Explore a SmartRent community in 2D and 3D." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: SitePage,
@@ -69,13 +72,9 @@ function SitePage() {
   const sampleBuildings = useMemo(() => data?.buildings ?? [], [data?.buildings]);
   const sampleUnits = useMemo(() => data?.units ?? [], [data?.units]);
   const focusedUnit = sampleUnits.find((u) => u.object_name === unit) ?? null;
-  const navBuilding = building !== "all" ? building : focusedUnit?.building_id ?? sampleBuildings[0]?.id ?? null;
-  const buildingUnits = useMemo(() => sampleUnits.filter((u) => !navBuilding || u.building_id === navBuilding), [sampleUnits, navBuilding]);
-  // With "All buildings" and nothing selected, the floor buttons apply to every building.
-  const floorUnits = building === "all" && !focusedUnit ? sampleUnits : buildingUnits;
-  const floors = useMemo(() => [...new Set(floorUnits.map((u) => u.floor))].sort((a, b) => b - a), [floorUnits]);
+  const floors = useMemo(() => [...new Set(sampleUnits.map((u) => u.floor))].sort((a, b) => b - a), [sampleUnits]);
   const currentFloor = floor ?? focusedUnit?.floor ?? null;
-  const hiddenUnits = useMemo(() => (floor == null ? [] : floorUnits.filter((u) => u.floor > floor).map((u) => u.object_name)), [floorUnits, floor]);
+  const hiddenUnits = useMemo(() => hiddenForFloor(sampleUnits, floor), [sampleUnits, floor]);
   const tableUnits = useMemo(() => (building === "all" ? sampleUnits : sampleUnits.filter((u) => u.building_id === building)), [sampleUnits, building]);
   const issues = useMemo(() => siteIssues(siteDevices ?? []), [siteDevices]);
   const summaries = useMemo(() => unitSummaries(siteDevices ?? [], issues), [siteDevices, issues]);
@@ -117,7 +116,7 @@ function SitePage() {
                     {f}
                   </button>
                 ))}
-                <button onClick={() => setFloor(null)} aria-pressed={floor == null} className={cn("h-7 w-10 rounded-md text-[0.65rem] font-medium", floor == null ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted")}>All</button>
+                <button onClick={() => { setFloor(null); setUnit(null); setDevice(null); }} aria-pressed={currentFloor == null} className={cn("h-7 w-10 rounded-md text-[0.65rem] font-medium", currentFloor == null ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted")}>All</button>
               </nav>
             )}
             <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1">
