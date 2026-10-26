@@ -25,7 +25,7 @@ WHERE status <> 'online';
 -- 4. Vary energy use and install years by apartment (the seed gives every apartment the same
 --    totals, so the energy and device-age heatmaps were flat). Sample sites and seeded device
 --    kinds only; values come from fixed per-kind baselines, so re-running gives the same result.
---    Each apartment gets a usage factor (0.6-1.6x) and a fit-out year (2014-2024); its devices
+--    Each apartment gets a usage factor (0.6-1.6x) and a fit-out year (2017-2025); its devices
 --    vary a little around both.
 UPDATE public.devices d
 SET energy_kwh = round(
@@ -34,7 +34,7 @@ SET energy_kwh = round(
          WHEN 'DEV_thermostat' THEN 12 WHEN 'DEV_lock' THEN 4 END)
       * (0.6 + (abs(hashtext(u.id::text || ':use')) % 101) / 100.0)
       * (0.9 + (abs(hashtext(d.id::text || ':use')) % 21) / 100.0)),
-    install_year = least(2026, 2014 + abs(hashtext(u.id::text || ':year')) % 11 + abs(hashtext(d.id::text || ':year')) % 3)
+    install_year = least(2026, 2017 + abs(hashtext(u.id::text || ':year')) % 9 + abs(hashtext(d.id::text || ':year')) % 3)
 FROM public.units u
 WHERE d.unit_id = u.id
   AND u.site_id IN ('11111111-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000002', '11111111-0000-0000-0000-000000000003')
