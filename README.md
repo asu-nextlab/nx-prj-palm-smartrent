@@ -123,6 +123,21 @@ The team already has a shared dev database (see the quick start above). These st
 
 The dev login only appears when running locally with `VITE_DEV_LOGIN=true`; it never shows on the live site. Data in the dev project is separate: sites uploaded there don't appear on the live site and vice versa. Free projects pause after about a week without use; resume them from the Supabase dashboard.
 
+## What's public and what's protected
+
+Everything the browser downloads is public: page code, the Supabase URL and its *publishable* key.
+In the dev server you can even read the `.tsx` source in the browser's dev tools; the live build
+is bundled and minified but just as readable. That's normal for a web app and fine, because none
+of it grants access:
+
+- **Data** (sites, apartments, devices, models) is protected in the database by row-level security:
+  only signed-in `@asu.edu` accounts can read or change it. Site URLs (`/sites/mesa-lofts`, or an
+  older id link) reveal nothing on their own.
+- **Secrets** stay on the server. The Google Map Tiles key is only handed out by a server function to
+  signed-in team members, and is restricted to the app's own web address.
+- Never put a Supabase `service_role` / `sb_secret_` key, or any other secret, in a `VITE_` variable:
+  those are built into the public code.
+
 ## Credits
 
 Built by ASU NEXT Lab, based on the SmartRent Apartment Explorer concept.

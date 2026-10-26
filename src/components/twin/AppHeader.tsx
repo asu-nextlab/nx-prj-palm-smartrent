@@ -6,7 +6,7 @@ export function AppHeader({ title, subtitle }: { title?: string | undefined; sub
   const navigate = useNavigate();
   return (
     <header className="flex h-14 items-center gap-4 bg-ink px-5 text-ink-foreground">
-      <Link to="/sites" className="flex items-center gap-3">
+      <Link to="/" className="flex items-center gap-3">
         <img src="/smartrent-logo.svg" alt="SmartRent" width={132} height={18} className="invert" />
         <span className="hidden border-l border-ink-foreground/20 pl-3 font-display text-[0.65rem] font-semibold tracking-[0.18em] text-brand sm:inline">DIGITAL TWIN</span>
       </Link>

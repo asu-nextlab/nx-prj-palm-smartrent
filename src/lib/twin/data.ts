@@ -16,6 +16,26 @@ export const sitesQuery = queryOptions({
   },
 });
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isSiteId = (key: string) => UUID.test(key);
+
+const slugify = (name: string) =>
+  name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "site";
+
+/** Readable URL key per site id (e.g. "mesa-lofts"). Repeated names are numbered in creation
+ *  order, so the oldest keeps the plain name. Pass sites in creation order (as sitesQuery does). */
+export function siteSlugs(sites: { id: string; name: string }[]): Map<string, string> {
+  const out = new Map<string, string>(), used = new Set<string>();
+  for (const s of sites) {
+    const base = slugify(s.name);
+    let slug = base;
+    for (let n = 2; used.has(slug); n++) slug = `${base}-${n}`;
+    used.add(slug);
+    out.set(s.id, slug);
+  }
+  return out;
+}
+
 export const siteQuery = (id: string) => queryOptions({
   queryKey: ["site", id],
   queryFn: async () => {

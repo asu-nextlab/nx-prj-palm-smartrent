@@ -9,7 +9,7 @@ type Field = "apt_number" | "floor" | "beds" | "baths" | "area_sqft" | "rent" | 
 const COLS: { key: Field; label: string; num?: boolean; w: string }[] = [
   { key: "apt_number", label: "Apt", w: "w-20" },
   { key: "floor", label: "Floor", num: true, w: "w-14" },
-  { key: "beds", label: "Beds", num: true, w: "w-14" },
+  { key: "beds", label: "Beds", num: true, w: "w-16" },
   { key: "baths", label: "Baths", num: true, w: "w-14" },
   { key: "area_sqft", label: "Sq ft", num: true, w: "w-20" },
   { key: "rent", label: "Rent $", num: true, w: "w-20" },
@@ -22,9 +22,13 @@ function Cell({ unit, col, siteId }: { unit: Unit; col: (typeof COLS)[number]; s
   const initial = unit[col.key] == null ? "" : String(unit[col.key]);
   const [v, setV] = useState(initial);
   useEffect(() => setV(initial), [initial]);
+  const [editing, setEditing] = useState(false);
+  // A studio has 0 bedrooms; say so, and accept "studio" when typed.
+  const studio = col.key === "beds" && v === "0" && !editing;
   const save = async (): Promise<void> => {
     if (v === initial) return;
-    const value = col.num ? (v === "" ? null : Number(v)) : v === "" && col.key !== "notes" ? initial : v;
+    const typed = col.key === "beds" && /^studio$/i.test(v.trim()) ? "0" : v;
+    const value = col.num ? (typed === "" ? null : Number(typed)) : typed === "" && col.key !== "notes" ? initial : typed;
     if (col.num && value !== null && isNaN(value as number)) { setV(initial); { toast.error("Enter a number"); return; } }
     const { error } = await supabase.from("units").update({ [col.key]: value } as never).eq("id", unit.id);
     if (error) { setV(initial); { toast.error(error.message); return; } }
@@ -40,7 +44,8 @@ function Cell({ unit, col, siteId }: { unit: Unit; col: (typeof COLS)[number]; s
     );
   }
   return (
-    <input value={v} onClick={(e) => e.stopPropagation()} onChange={(e) => setV(e.target.value)} onBlur={save}
+    <input value={studio ? "Studio" : v} onClick={(e) => e.stopPropagation()} onChange={(e) => setV(e.target.value)}
+      onFocus={() => setEditing(true)} onBlur={() => { setEditing(false); void save(); }}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setV(initial); }}
       inputMode={col.num ? "decimal" : undefined}
       className={cn("w-full bg-transparent px-2 py-1.5 text-sm outline-none focus:bg-card focus:ring-1 focus:ring-ring", col.num && "text-right tabular-nums")} />

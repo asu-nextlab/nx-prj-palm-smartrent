@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { siteDevicesQuery, siteQuery } from "@/lib/twin/data";
+import { isSiteId, siteDevicesQuery, siteQuery, siteSlugs, sitesQuery } from "@/lib/twin/data";
 import { getGoogleTiles } from "@/lib/twin/google.functions";
 import type { GroundMode } from "@/components/twin/SiteViewer";
 import { AppHeader } from "@/components/twin/AppHeader";
@@ -47,9 +47,20 @@ function Seg({ value, options, onChange }: { value: string; options: [string, st
 const viewPrefs: { ground: GroundMode; clip: boolean } = { ground: "map", clip: true };
 
 function SitePage() {
-  const { siteId } = Route.useParams();
-  const { data, isLoading, error } = useQuery(siteQuery(siteId));
-  const { data: siteDevices } = useQuery(siteDevicesQuery(siteId));
+  // The URL holds the site's readable name (see siteSlugs); older links with the id still work
+  // and are swapped for the name once the site list has loaded.
+  const { siteId: key } = Route.useParams();
+  const sites = useQuery(sitesQuery);
+  const slugs = useMemo(() => siteSlugs(sites.data ?? []), [sites.data]);
+  const siteId = isSiteId(key) ? key : [...slugs].find(([, slug]) => slug === key)?.[0] ?? "";
+  const navigate = useNavigate();
+  useEffect(() => {
+    const slug = isSiteId(key) ? slugs.get(key) : undefined;
+    if (slug) void navigate({ to: "/sites/$siteId", params: { siteId: slug }, replace: true });
+  }, [key, slugs, navigate]);
+  const { data, isLoading: siteLoading, error } = useQuery({ ...siteQuery(siteId), enabled: !!siteId });
+  const isLoading = siteLoading || (!siteId && sites.isPending);
+  const { data: siteDevices } = useQuery({ ...siteDevicesQuery(siteId), enabled: !!siteId });
   const [modelDevices, setModelDevices] = useState<Record<string, string[]> | null>(null);
   const [unit, setUnit] = useState<string | null>(null);
   const [device, setDevice] = useState<string | null>(null);
@@ -106,7 +117,7 @@ function SitePage() {
               {needsGoogle && google.isLoading && <span className="rounded-md bg-card/95 px-2 py-1 text-xs text-muted-foreground ring-1 ring-border">Loading Google imagery…</span>}
               {needsGoogle && google.error && <span className="rounded-md bg-card/95 px-2 py-1 text-xs text-destructive ring-1 ring-border">Google imagery unavailable: {(google.error as Error).message.slice(0, 120)}</span>}
               {unit && <Button size="sm" variant="secondary" className="h-8 shadow-sm" onClick={() => { setUnit(null); setDevice(null); }}>Show entire community</Button>}
-              <div className="ml-auto"><PlacementPopover site={site} /></div>
+              <div className="ml-auto"><PlacementPopover site={site} ground={ground} /></div>
             </div>
             {floors.length > 0 && (
               <nav aria-label="Floor levels" className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col gap-1 rounded-lg bg-card/95 p-1 shadow-sm ring-1 ring-border">
@@ -173,10 +184,12 @@ function SitePage() {
   );
 }
 
-function PlacementPopover({ site }: { site: { id: string; lat: number; lon: number; rotation: number; scale: number; elevation: number; kind: string; model_path: string | null; created_by: string | null } }) {
+function PlacementPopover({ site, ground }: { ground: GroundMode; site: { id: string; lat: number; lon: number; rotation: number; scale: number; elevation: number; kind: string; model_path: string | null; created_by: string | null } }) {
   const qc = useQueryClient();
   const [f, setF] = useState({ lat: String(site.lat), lon: String(site.lon), rotation: String(site.rotation), scale: String(site.scale), elevation: String(+(site.elevation / 0.3048).toFixed(2)) });
   const [step, setStep] = useState(10);
+  // Height lines the model up with Google's 3D terrain; the flat grounds are always at 0.
+  const heightApplies = ground === "city3d";
   const save = async (over?: Partial<typeof f>): Promise<void> => {
     if (!over && !confirm("This will overwrite the saved map placement for everyone. Are you sure?")) return;
     const v = { ...f, ...over };
@@ -212,7 +225,7 @@ function PlacementPopover({ site }: { site: { id: string; lat: number; lon: numb
         <div className="grid grid-cols-2 gap-2">
           {(["lat", "lon", "rotation", "scale", "elevation"] as const).map((k) => (
             <div key={k}><Label className="text-xs capitalize">{k === "rotation" ? "Rotation °" : k === "elevation" ? "Height (ft)" : k}</Label>
-              <Input className="h-8" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></div>
+              <Input className="h-8" value={f[k]} disabled={k === "elevation" && !heightApplies} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></div>
           ))}
         </div>
         <div className="space-y-2 rounded-md border p-2">
@@ -227,9 +240,10 @@ function PlacementPopover({ site }: { site: { id: string; lat: number; lon: numb
             <span /><Button size="sm" variant="outline" className="h-8" aria-label="Move south" onClick={() => nudge(-1, 0)}>S</Button><span />
           </div>
           <div className="flex justify-center gap-2">
-            <Button size="sm" variant="outline" className="h-8" aria-label="Move up" onClick={() => lift(1)}>▲ Up</Button>
-            <Button size="sm" variant="outline" className="h-8" aria-label="Move down" onClick={() => lift(-1)}>▼ Down</Button>
+            <Button size="sm" variant="outline" className="h-8" aria-label="Move up" disabled={!heightApplies} onClick={() => lift(1)}>▲ Up</Button>
+            <Button size="sm" variant="outline" className="h-8" aria-label="Move down" disabled={!heightApplies} onClick={() => lift(-1)}>▼ Down</Button>
           </div>
+          {!heightApplies && <p className="text-center text-[0.65rem] text-muted-foreground">Height only applies in 3D city view, to sit the model on Google's terrain.</p>}
         </div>
         <Button size="sm" className="w-full" onClick={() => save()}>Save placement</Button>
       </PopoverContent>

@@ -215,7 +215,7 @@ export function DetailPanel({ unit, device, modelDevices, issues, onSelectDevice
         <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground">Close</button>
       </div>
       <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
-        {[["Beds", unit.beds], ["Baths", unit.baths], ["Sq ft", unit.area_sqft]].map(([k, v]) => (
+        {[["Beds", unit.beds === 0 ? "Studio" : unit.beds], ["Baths", unit.baths], ["Sq ft", unit.area_sqft]].map(([k, v]) => (
           <div key={k as string} className="rounded-lg bg-muted py-2"><dt className="text-[0.65rem] uppercase text-muted-foreground">{k}</dt><dd className="font-display text-lg">{v ?? "—"}</dd></div>
         ))}
       </dl>

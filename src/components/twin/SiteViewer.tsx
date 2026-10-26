@@ -389,7 +389,7 @@ export default function SiteViewer(props: ViewerProps) {
   const city = props.ground === "city3d" && props.google;
   return (
     <div className="relative h-full w-full">
-      <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.1, far: 3000 }}>
+      <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 2]} camera={{ position: [60, 60, 80], fov: 45, near: 0.5, far: 3000 }}>
         {h(SceneSetup, { far: !!city })}
         {h(CompassTracker, { el: compass })}
         {city

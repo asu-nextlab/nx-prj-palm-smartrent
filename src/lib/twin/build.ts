@@ -88,8 +88,10 @@ export function buildSampleSite(buildings: SampleBuilding[], units: SampleUnit[]
       ug.position.set(ox + u.col * t.width, (u.floor - 1) * FLOOR_HEIGHT + 0.12, oz + u.row * t.depth);
       const shell = box("SHELL", [ut.width - 0.15, FLOOR_HEIGHT - 0.15, ut.depth - 0.15], color, [ut.width / 2, FLOOR_HEIGHT / 2, ut.depth / 2]);
       // window band
-      const win = box("Window", [ut.width * 0.6, 1.1, 0.04], "#5b7f93", [ut.width / 2, FLOOR_HEIGHT * 0.55, -0.06]);
-      const win2 = win.clone(); win2.position.z = ut.depth + 0.06 - 0.15;
+      // Windows stand 7.5 cm proud of the shell on both sides so they don't z-fight with the wall
+      // from a distance, and stay inside the unit's footprint so facing rows don't overlap.
+      const win = box("Window", [ut.width * 0.6, 1.1, 0.04], "#5b7f93", [ut.width / 2, FLOOR_HEIGHT * 0.55, 0.02]);
+      const win2 = win.clone(); win2.position.z = ut.depth - 0.02;
       shell.userData["shell"] = true; win.userData["shell"] = true; win2.userData["shell"] = true;
       ug.add(shell, win, win2);
       if (withInteriors) { ug.add(buildInterior(ut)); shell.visible = false; }

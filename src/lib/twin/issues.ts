@@ -182,14 +182,24 @@ export function heatColors(mode: HeatMode, unitNames: string[], summaries: Map<s
     }
     return colors;
   }
-  const value = (s: UnitSummary | undefined) =>
-    mode === "energy" ? (s && s.energyKwh > 0 ? s.energyKwh : null)
-      : s?.oldestInstallYear != null ? now.getFullYear() - s.oldestInstallYear : null;
-  const values = unitNames.map((u) => value(summaries.get(u))).filter((v): v is number => v != null);
-  const min = Math.min(...values), max = Math.max(...values);
+  // Fixed scales rather than lowest-to-highest on the site, so a colour means the same thing on
+  // every site and equal apartments don't all read as "best" or "worst".
+  if (mode === "age") {
+    // New → green; due for replacement (RULES.oldAfterYears) or older → red.
+    for (const u of unitNames) {
+      const year = summaries.get(u)?.oldestInstallYear;
+      colors[u] = year == null ? NO_DATA_COLOR : ramp((now.getFullYear() - year) / RULES.oldAfterYears);
+    }
+    return colors;
+  }
+  // Energy: each apartment's total against the site average. Average → yellow;
+  // RULES.highEnergyFactor × the average (what counts as high use) → red; as far below → green.
+  const totals = unitNames.map((u) => summaries.get(u)?.energyKwh ?? 0).filter((v) => v > 0);
+  const mean = totals.reduce((a, b) => a + b, 0) / (totals.length || 1);
+  const spread = RULES.highEnergyFactor - 1;
   for (const u of unitNames) {
-    const v = value(summaries.get(u));
-    colors[u] = v == null ? NO_DATA_COLOR : ramp(max > min ? (v - min) / (max - min) : 0);
+    const kwh = summaries.get(u)?.energyKwh ?? 0;
+    colors[u] = kwh > 0 && mean > 0 ? ramp(0.5 + (kwh / mean - 1) / (2 * spread)) : NO_DATA_COLOR;
   }
   return colors;
 }
@@ -217,6 +227,12 @@ export const HEAT_LEGENDS: Record<Exclude<HeatMode, "off">, HeatLegend> = {
     to: "Most urgent",
     extra: [OK_COLOR, "No issues"],
   },
-  energy: { label: "Total device energy (kWh/yr)", gradient: `linear-gradient(to right, ${ramp(0)}, ${ramp(0.5)}, ${ramp(1)})`, from: "Lowest", to: "Highest" },
-  age: { label: "Oldest device", gradient: `linear-gradient(to right, ${ramp(0)}, ${ramp(0.5)}, ${ramp(1)})`, from: "Newest", to: "Oldest" },
+  energy: {
+    label: "Device energy vs site average", gradient: `linear-gradient(to right, ${ramp(0)}, ${ramp(0.5)}, ${ramp(1)})`,
+    from: `${2 - RULES.highEnergyFactor}×`, to: `${RULES.highEnergyFactor}×+`, extra: [NO_DATA_COLOR, "No data"],
+  },
+  age: {
+    label: "Oldest device", gradient: `linear-gradient(to right, ${ramp(0)}, ${ramp(0.5)}, ${ramp(1)})`,
+    from: "New", to: `${RULES.oldAfterYears}+ yrs (due)`, extra: [NO_DATA_COLOR, "No data"],
+  },
 };

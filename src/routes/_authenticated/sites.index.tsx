@@ -1,9 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { sitesQuery, meQuery, creatorName, deleteSite } from "@/lib/twin/data";
+import { sitesQuery, siteSlugs, meQuery, creatorName, deleteSite } from "@/lib/twin/data";
 import { ingestGlb } from "@/lib/twin/ingest";
 import { exportSampleGlb } from "@/lib/twin/build";
 import { AppHeader } from "@/components/twin/AppHeader";
@@ -29,6 +29,7 @@ export const Route = createFileRoute("/_authenticated/sites/")({
 
 function SitesPage() {
   const { data, isLoading } = useQuery(sitesQuery);
+  const slugs = useMemo(() => siteSlugs(data ?? []), [data]);
   const { data: me } = useQuery(meQuery);
   const qc = useQueryClient();
   const remove = async (e: React.MouseEvent, s: { id: string; name: string; model_path: string | null }) => {
@@ -57,7 +58,7 @@ function SitesPage() {
         {isLoading ? <p className="mt-10 text-muted-foreground">Loading…</p> : (
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data?.map((s) => (
-              <Link key={s.id} to="/sites/$siteId" params={{ siteId: s.id }}
+              <Link key={s.id} to="/sites/$siteId" params={{ siteId: slugs.get(s.id) ?? s.id }}
                 className="group rounded-xl border bg-card p-5 transition hover:border-brand hover:shadow-lg">
                 <div className="flex items-center justify-between">
                   <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">{s.kind === "glb" ? "Uploaded model" : "Sample model"}</span>
