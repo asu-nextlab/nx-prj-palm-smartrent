@@ -95,6 +95,9 @@ function deviceMarker(apt: THREE.Object3D, aptBox: THREE.Box3, objectName: strin
 
 function Selection({ root, props }: { root: THREE.Object3D; props: ViewerProps }) {
   const { gl, camera } = useThree();
+  // The apartment that was selected before each of the last two clicks. Kept outside the effect,
+  // which re-subscribes whenever the selection changes (i.e. between the two clicks of a double-click).
+  const focusBeforeClicks = useRef<(string | null)[]>([]);
   useEffect(() => {
     const canvas = gl.domElement;
     const raycaster = new THREE.Raycaster();
@@ -114,6 +117,7 @@ function Selection({ root, props }: { root: THREE.Object3D; props: ViewerProps }
       start = null;
       pointers.delete(e.pointerId);
       if (!click || e.target !== canvas) return;
+      focusBeforeClicks.current = [...focusBeforeClicks.current, props.focusUnit].slice(-2);
       const rect = canvas.getBoundingClientRect();
       root.updateWorldMatrix(true, true);
       raycaster.setFromCamera(new THREE.Vector2((e.clientX - rect.left) / rect.width * 2 - 1, -(e.clientY - rect.top) / rect.height * 2 + 1), camera);
@@ -123,8 +127,10 @@ function Selection({ root, props }: { root: THREE.Object3D; props: ViewerProps }
       props.onPick(unit, device);
     };
     const cancel = (e: PointerEvent) => { start = null; pointers.delete(e.pointerId); };
-    // Double-click anywhere in the view goes back to the whole community.
-    const dbl = () => { if (props.focusUnit) props.onPick(null, null); };
+    // Double-click anywhere in the view goes back to the whole community, but only if an apartment
+    // was already open: double-clicking an apartment from the community view should open it, not
+    // open it on the first click and close it again on the double-click.
+    const dbl = () => { if (props.focusUnit && focusBeforeClicks.current[0]) props.onPick(null, null); };
     canvas.addEventListener("pointerdown", down);
     canvas.addEventListener("dblclick", dbl);
     window.addEventListener("pointermove", move);

@@ -166,8 +166,10 @@ function SitePage() {
             </div>
             <div className="min-h-0 flex-1">
               {tab === "apartments"
-                ? <UnitTable units={tableUnits} buildings={data.buildings} siteId={siteId} selected={unit} onSelect={(o) => { setUnit(o); setDevice(null); }} />
-                : <MaintenanceList issues={tableIssues} units={data.units} buildings={data.buildings} selectedUnit={unit} selectedDevice={device}
+                // Keyed so each list gets its own scroll box: React would otherwise reuse the same
+                // div, and the Maintenance list would open at the apartment table's scroll position.
+                ? <UnitTable key="apartments" units={tableUnits} buildings={data.buildings} siteId={siteId} selected={unit} onSelect={(o) => { setUnit(o); setDevice(null); }} />
+                : <MaintenanceList key="maintenance" issues={tableIssues} units={data.units} buildings={data.buildings} selectedUnit={unit} selectedDevice={device}
                     onSelect={(u, d) => { setUnit(u); setDevice(d); setFloor(null); }} />}
             </div>
           </div>
